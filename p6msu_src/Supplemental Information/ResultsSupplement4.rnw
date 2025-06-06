@@ -1,0 +1,1302 @@
+\documentclass[letterpaper]{article}
+\usepackage{fullpage}
+\usepackage{pdflscape}
+\addtolength{\hoffset}{-.5in}
+\addtolength{\textwidth}{1in}
+\addtolength{\voffset}{-.5in}
+\addtolength{\textheight}{1in}
+\begin{document}
+
+\subsection*{Results Supplement 4}
+\noindent source and input files available at \texttt{https://osf.io/p6msu/} \par
+\noindent compiled \today\  \par
+\noindent Results Supplement 4 for ``Pattern similarity analyses of frontoparietal task coding: Individual variation and genetic influences'' by Joset A. Etzel, Ya'el Courtney, Caitlin E. Carey, Maria Z. Gehred, Arpana Agrawal, and Todd S. Braver. \par
+\vspace{0.2 cm} 
+\noindent This is a \texttt{knitr} file (\texttt{https://yihui.name/knitr/}); see the \texttt{.rnw} file with the same name as this \texttt{.pdf} for the R code to generate all figures and results. To compile, change the \texttt{in.path} variable to the location of the \texttt{input} directory downloaded from   \textbf{https://osf.io/p6msu/}. \par
+
+<<startup, echo=FALSE, message=FALSE, warning=FALSE>>=
+# Results Supplement 4 for ``Pattern similarity analyses of frontoparietal task coding: Individual variation and genetic influences'' by Joset A. Etzel, Ya'el Courtney, Caitlin E. Carey, Maria Z. Gehred, Arpana Agrawal, and Todd S. Braver
+# https://osf.io/p6msu/
+# code written by Joset A. Etzel, jetzel@wustl.edu. It may be adapted for other research use, provided the source is cited.
+
+library(xtable);   # for table formatting
+library(DescTools);   # for YuenTTest
+
+rm(list=ls());
+
+in.path <- "d:/svnFiles/HCP/byFamilyGroup/twinManuscript/forSubmission/input/";    # change this to the path on your computer
+
+opts_knit$set(width=150);   # make the text output wider
+options(xtable.floating=FALSE);
+source(paste0(in.path, "subPairings.R"));  # get.ids function
+source(paste0(in.path, "betaCoeff.R"));  # from http://www.dataanalytics.org.uk/Data%20Analysis/R%20Monographs/BetaCoeff.htm
+do.trim <- 0.1;  # how much trimming to do in the mean and SEM
+community.ids <- c("FrontoParietal", "Visual");
+
+# get the subject ID codes for the various subject groups
+sub.lbls <- c("MZ", "DZ", "SIB", "UNR")
+MZ.1s <- get.ids("MZ.1s");    MZ.2s <- get.ids("MZ.2s");  
+DZ.1s <- get.ids("DZ.1s");    DZ.2s <- get.ids("DZ.2s");  
+SIB.1s <- get.ids("SIB.1s");  SIB.2s <- get.ids("SIB.2s");  
+UNR.1s <- get.ids("UNR.1s");  UNR.2s <- get.ids("UNR.2s");  
+
+
+# various helper functions
+get.FTrz <- function(in.val) { return(.5 * log((1+in.val)/(1-in.val))); }  # Fisher's r-to-z transformation.
+get.FTzr <- function(in.val) { return((exp(2*in.val)-1)/(exp(2*in.val)+1)); }  # Fisher's z-to-r transformation
+
+
+# little function to return a string of Bonferroni-corrected p-value stars; in.val is the p-value, b.num how many comparisons.
+get.stars.b <- function(in.val, b.num=1) {  
+  out.val <- "";
+  if (in.val < (0.05/b.num)) { out.val <- "*"; } 
+  if (in.val < (0.01/b.num)) { out.val <- "**"; }
+  if (in.val < (0.001/b.num)) { out.val <- "***"; }
+  
+  return(out.val);
+}
+
+
+# formatting function to round the output to 'digits' digits and removing the leading zero.
+get.format <- function (inval, digits=3, is.p=FALSE) {   # digits <- 3; inval <- 0.00003;
+  outval <- "";
+  if (!is.na(inval)) { 
+    if (inval < 0) {outval <- gsub("^-0", "-", round(inval, digits)); }
+    if (inval > 0) { outval <- gsub("^0", "", round(inval, digits)); }
+    if (inval == 0 & is.p == FALSE) { outval <- "0"; }
+    if (outval == "") {
+      if (digits == 2) { outval <- "<.01"; }
+      if (digits == 3) { outval <- "<.001"; }
+      if (digits == 4) { outval <- "<.0001"; }
+      if (digits == 5) { outval <- "<.00001"; }
+    }
+    if (outval == "-") {
+      if (digits == 2) { outval <- "<-.01"; }
+      if (digits == 3) { outval <- "<-.001"; }
+      if (digits == 4) { outval <- "<-.0001"; }
+      if (digits == 5) { outval <- "<-.00001"; }
+    }
+  }
+  
+  return(outval);
+}
+
+
+@
+
+\vspace{0.4 cm}
+\noindent The four pairwise reference matrices; see Figure 2 on the main paper. The average of the white cells (-) is subtracted from the average of the grey cells (+) for quantification, and blank cells are not included.  \par
+\vspace{0.2 cm}
+<<code0, cache=TRUE, echo=FALSE, dev='pdf', fig.height=2, fig.width=7.5, fig.align="center">>=
+layout(matrix(1:4, c(1,4)));
+par(mar=c(2, 2.25, 2, 0.75), mgp=c(1.1, 0.2, 0), tcl=-0.3);
+# mar: c(bottom, left, top, right) gives the number of lines of margin to be specified on the four sides of the plot. Default is c(5, 4, 4, 2) + 0.1.
+
+cond.ids <- c("0,F", "0,P", "2,F", "2,P");
+centers <- seq(from=0, to=1, length.out=4);  # midpoints of the boxes
+
+plt.matrix <- matrix(0.125, nrow=4, ncol=4);   
+plt.matrix[c(1,3),c(2,4)] <- 0; 
+plt.matrix[c(2,4),c(1,3)] <- 0;  
+plt.matrix <- plt.matrix[,4:1];   # so plot has the usual diagonal direction
+image(plt.matrix, col=c("white", "grey"), breaks=c(0,0.1,0.75), main="", xlab="", ylab="", axes=FALSE, useRaster=TRUE);
+mtext(side=3, text="Category", line=0.15, cex=0.8); 
+mtext(side=1, text="Person 1 of Pair", line=1, cex=0.7); 
+mtext(side=2, text="Person 2 of Pair", line=1.3, cex=0.7); 
+axis(side=1, at=centers, labels=cond.ids, cex.axis=0.8, las=1, lwd.ticks=0)
+axis(side=2, at=centers, labels=rev(cond.ids), cex.axis=0.8, las=1, lwd.ticks=0)
+# centers[1],[1] is 0,0: lower left corner
+text(x=rep(centers[1],2), y=centers[c(1,3)], labels="-", cex=1.5); text(x=rep(centers[2],2), y=centers[c(2,4)], labels="-", cex=1.5); 
+text(x=rep(centers[3],2), y=centers[c(1,3)], labels="-", cex=1.5); text(x=rep(centers[4],2), y=centers[c(2,4)], labels="-", cex=1.5); 
+text(x=rep(centers[2],2), y=centers[c(1,3)], labels="+", cex=1.5); text(x=rep(centers[1],2), y=centers[c(2,4)], labels="+", cex=1.5); 
+text(x=rep(centers[4],2), y=centers[c(1,3)], labels="+", cex=1.5); text(x=rep(centers[3],2), y=centers[c(2,4)], labels="+", cex=1.5); 
+box();
+
+plt.matrix <- matrix(0, nrow=4, ncol=4);   
+plt.matrix[1:2,1:2] <- 0.125;
+plt.matrix[3:4,3:4] <- 0.125; 
+plt.matrix <- plt.matrix[,4:1];    # so plot has the usual diagonal direction
+image(plt.matrix, col=c("white", "grey"), breaks=c(0,0.1,0.75), main="", xlab="", ylab="", axes=FALSE, useRaster=TRUE);
+mtext(side=3, text="Load", line=0.15, cex=0.8); 
+mtext(side=1, text="Person 1 of Pair", line=1, cex=0.7); 
+mtext(side=2, text="Person 2 of Pair", line=1.3, cex=0.7); 
+axis(side=1, at=centers, labels=cond.ids, cex.axis=0.8, las=1, lwd.ticks=0)
+axis(side=2, at=centers, labels=rev(cond.ids), cex.axis=0.8, las=1, lwd.ticks=0)
+# centers[1],[1] is 0,0: lower left corner
+text(x=rep(centers[1],2), y=centers[1:2], labels="-", cex=1.5); text(x=rep(centers[2],2), y=centers[1:2], labels="-", cex=1.5); 
+text(x=rep(centers[3],2), y=centers[3:4], labels="-", cex=1.5); text(x=rep(centers[4],2), y=centers[3:4], labels="-", cex=1.5); 
+text(x=rep(centers[3],2), y=centers[1:2], labels="+", cex=1.5); text(x=rep(centers[4],2), y=centers[1:2], labels="+", cex=1.5); 
+text(x=rep(centers[1],2), y=centers[3:4], labels="+", cex=1.5); text(x=rep(centers[2],2), y=centers[3:4], labels="+", cex=1.5); 
+box();
+
+
+plt.matrix <- matrix(0, nrow=4, ncol=4);   
+plt.matrix[3:4,3:4] <- 0.25; 
+plt.matrix <- plt.matrix[,4:1];      # so plot has the usual diagonal direction
+image(plt.matrix, col=c("white", "grey"), breaks=c(0,0.1,0.75), main="", xlab="", ylab="", axes=FALSE, useRaster=TRUE);
+mtext(side=3, text="Load (2-back only)", line=0.15, cex=0.8); 
+mtext(side=1, text="Person 1 of Pair", line=1, cex=0.7); 
+mtext(side=2, text="Person 2 of Pair", line=1.3, cex=0.7); 
+axis(side=1, at=centers, labels=cond.ids, cex.axis=0.8, las=1, lwd.ticks=0)
+axis(side=2, at=centers, labels=rev(cond.ids), cex.axis=0.8, las=1, lwd.ticks=0)
+# centers[1],[1] is 0,0: lower left corner
+text(x=rep(centers[1],2), y=centers[1:2], labels="-", cex=1.5); text(x=rep(centers[2],2), y=centers[1:2], labels="-", cex=1.5); 
+text(x=rep(centers[3],2), y=centers[3:4], labels="-", cex=1.5); text(x=rep(centers[4],2), y=centers[3:4], labels="-", cex=1.5); 
+text(x=rep(centers[3],2), y=centers[1:2], labels="+", cex=1.5); text(x=rep(centers[4],2), y=centers[1:2], labels="+", cex=1.5); 
+box();
+
+
+
+plt.matrix <- matrix(0, nrow=4, ncol=4);   
+plt.matrix[1:2,1:2] <- 0.125;
+plt.matrix <- plt.matrix[,4:1];      # so plot has the usual diagonal direction
+image(plt.matrix, col=c("white", "grey"), breaks=c(0,0.1,0.75), main="", xlab="", ylab="", axes=FALSE, useRaster=TRUE);
+mtext(side=3, text="Load (0-back only)", line=0.15, cex=0.8); 
+mtext(side=1, text="Person 1 of Pair", line=1, cex=0.7); 
+mtext(side=2, text="Person 2 of Pair", line=1.3, cex=0.7); 
+axis(side=1, at=centers, labels=cond.ids, cex.axis=0.8, las=1, lwd.ticks=0)
+axis(side=2, at=centers, labels=rev(cond.ids), cex.axis=0.8, las=1, lwd.ticks=0)
+# centers[1],[1] is 0,0: lower left corner
+text(x=rep(centers[1],2), y=centers[1:2], labels="-", cex=1.5); text(x=rep(centers[2],2), y=centers[1:2], labels="-", cex=1.5); 
+text(x=rep(centers[3],2), y=centers[3:4], labels="-", cex=1.5); text(x=rep(centers[4],2), y=centers[3:4], labels="-", cex=1.5); 
+text(x=rep(centers[1],2), y=centers[3:4], labels="+", cex=1.5); text(x=rep(centers[2],2), y=centers[3:4], labels="+", cex=1.5); 
+box();
+
+
+
+@
+\vspace{0.4 cm}
+
+
+\section*{S4.1a Pairwise quantification scores: Load and Category comparisons}
+\noindent Pairwise quantification scores, by subject group, and with different ways of quantifying Load. One MZ FrontoParietal Category outlier at -0.18 not shown for the 0 and 2-back Load quantification. Numbers printed on boxplots are for a paired robust t-test for Load != Category within each community and subject group. Note that y-axis scaling varies between the first row of plots and the others. \par
+\vspace{0.2 cm}
+<<code1a, echo=FALSE, dev='pdf', fig.height=2.5, fig.width=7.25, fig.align="center">>=
+layout(matrix(1:4, c(1,4)));
+par(mar=c(2.3, 2.2, 2, 0.75), mgp=c(1.1, 0.2, 0), tcl=-0.3);
+# mar: c(bottom, left, top, right) gives the number of lines of margin. Default is c(5, 4, 4, 2) + 0.1.
+
+bp.cols <- c("darkkhaki", "cornsilk");   # bp.cols <- c("lightgrey", "lightgrey");
+
+quant.RSA.plots <- function(pair.type, which.load) {  # pair.type <- "UNRhigh"; which.load <- "_0and2back";
+  sub.1s <- get.ids(paste0(pair.type, ".1s"))
+  sub.2s <- get.ids(paste0(pair.type, ".2s")); 
+  sub.conc <- paste0(sub.1s, ".", sub.2s);  # concatenated version for row labels
+  
+  fname.quant <- paste0(in.path, "pairwiseCorrelations/", pair.type, "_pairPairwiseDistanceRSAquant", which.load, "_z.txt");
+  if (!file.exists(fname.quant)) {
+    if (which.load == "_0and2back") {
+      same.load <- c("X0bkFace.0bkFace", "X2bkFace.2bkFace", "X0bkPlace.0bkPlace", "X2bkPlace.2bkPlace", 
+                     "X0bkFace.0bkPlace", "X0bkPlace.0bkFace", "X2bkFace.2bkPlace", "X2bkPlace.2bkFace");
+    }
+    if (which.load == "_just2back") { 
+      same.load <- c("X2bkFace.2bkFace", "X2bkPlace.2bkPlace", "X2bkFace.2bkPlace", "X2bkPlace.2bkFace");
+    }
+    if (which.load == "_just0back") { 
+      same.load <- c("X0bkFace.0bkFace", "X0bkPlace.0bkPlace", "X0bkFace.0bkPlace", "X0bkPlace.0bkFace");
+    }
+    diff.load <- c("X0bkFace.2bkFace", "X0bkFace.2bkPlace", "X0bkPlace.2bkFace", "X0bkPlace.2bkPlace",
+                   "X2bkFace.0bkFace", "X2bkFace.0bkPlace", "X2bkPlace.0bkFace", "X2bkPlace.0bkPlace");
+
+    same.pic <- c("X0bkFace.0bkFace", "X0bkFace.2bkFace", "X0bkPlace.0bkPlace", "X0bkPlace.2bkPlace", 
+                  "X2bkFace.0bkFace", "X2bkFace.2bkFace", "X2bkPlace.0bkPlace", "X2bkPlace.2bkPlace");
+    diff.pic <- c("X0bkFace.0bkPlace", "X0bkFace.2bkPlace", "X0bkPlace.0bkFace", "X0bkPlace.2bkFace", 
+                  "X2bkFace.0bkPlace", "X2bkFace.2bkPlace", "X2bkPlace.0bkFace", "X2bkPlace.2bkFace");
+    
+    fp.tbl <- read.table(paste0(in.path, "pairwiseCorrelations/", pair.type, "_FrontoParietal_pairPairwiseDistanceRSA.txt"));  # made above
+    fp.tbl <- get.FTrz(fp.tbl); # ready for averaging
+    v.tbl <- read.table(paste0(in.path, "pairwiseCorrelations/", pair.type, "_Visual_pairPairwiseDistanceRSA.txt"));  # rows are people, columns are pair.ids
+    v.tbl <- get.FTrz(v.tbl);    
+    
+    quant.tbl <- data.frame(array(NA, c(length(sub.conc)*2*2, 4)));
+    colnames(quant.tbl) <- c("sub.conc", "comm.id", "type.id", "diff");
+    ctr <- 1;
+    for (sid in 1:length(sub.conc)) {   # sid <- 1;
+      quant.tbl$sub.conc[ctr] <- sub.conc[sid];
+      quant.tbl$comm.id[ctr] <- "FrontoParietal";
+      quant.tbl$type.id[ctr] <- "load";
+      quant.tbl$diff[ctr] <- mean(as.numeric(fp.tbl[sub.conc[sid],same.load])) - mean(as.numeric(fp.tbl[sub.conc[sid],diff.load])); # stay as z
+      ctr <- ctr + 1;
+      
+      quant.tbl$sub.conc[ctr] <- sub.conc[sid];
+      quant.tbl$comm.id[ctr] <- "FrontoParietal";
+      quant.tbl$type.id[ctr] <- "picture";
+      quant.tbl$diff[ctr] <- mean(as.numeric(fp.tbl[sub.conc[sid],same.pic])) - mean(as.numeric(fp.tbl[sub.conc[sid],diff.pic]));  
+      ctr <- ctr + 1;
+      
+      quant.tbl$sub.conc[ctr] <- sub.conc[sid];
+      quant.tbl$comm.id[ctr] <- "Visual";
+      quant.tbl$type.id[ctr] <- "load";
+      quant.tbl$diff[ctr] <- mean(as.numeric(v.tbl[sub.conc[sid],same.load])) - mean(as.numeric(v.tbl[sub.conc[sid],diff.load])); 
+      ctr <- ctr + 1;
+      
+      quant.tbl$sub.conc[ctr] <- sub.conc[sid];
+      quant.tbl$comm.id[ctr] <- "Visual";
+      quant.tbl$type.id[ctr] <- "picture";
+      quant.tbl$diff[ctr] <- mean(as.numeric(v.tbl[sub.conc[sid],same.pic])) - mean(as.numeric(v.tbl[sub.conc[sid],diff.pic]));  
+      ctr <- ctr + 1;
+    }
+    write.table(quant.tbl, fname.quant);
+  } 
+  quant.tbl <- read.table(fname.quant, stringsAsFactors=FALSE);
+  
+  
+  # make the plot
+  if (which.load == "_0and2back") { y.lim <- c(-0.08,0.2); ttl <- "."; }    # ttl <- "";
+  if (which.load == "_just2back") { y.lim <- c(-0.21,0.25); ttl <- ". (2-back only Load)"; }
+  if (which.load == "_just0back") { y.lim <- c(-0.22,0.25); ttl <- ". (0-back only Load)"; }
+  
+  plot(x=-1, y=-1, xlim=c(0.5,4.5), ylim=y.lim, xlab="", ylab="", main="", xaxt='n', xaxs='i', cex.axis=0.9);
+  mtext(side=3, text=paste0(pair.type, ttl), line=0.1, cex=0.8);     # top title
+  mtext(side=1, text="FrontoParietal    Visual      ", line=1.4, cex=0.73); 
+  mtext(side=2, text="Quantification Score", line=1.2, cex=0.8); 
+  axis(side=1, at=c(1,3), labels=rep("Load", 2), cex.axis=0.9);
+  axis(side=1, at=c(2,4), labels=rep("Category", 2), cex.axis=0.9);
+  lines(x=c(-1,5), y=rep(0,2), col='darkgrey');
+  lines(x=rep(2.5,2), y=c(-1,1));
+  
+  fp.load <- quant.tbl$diff[which(quant.tbl$comm.id == "FrontoParietal" & quant.tbl$type.id == "load")];
+  fp.st <- quant.tbl$diff[which(quant.tbl$comm.id == "FrontoParietal" & quant.tbl$type.id == "picture")];
+  v.load <- quant.tbl$diff[which(quant.tbl$comm.id == "Visual" & quant.tbl$type.id == "load")];
+  v.st <- quant.tbl$diff[which(quant.tbl$comm.id == "Visual" & quant.tbl$type.id == "picture")];
+  
+  boxplot(fp.load, at=1, add=TRUE, bty='n', xaxt='n', yaxt='n', col=bp.cols[1], boxwex=0.7, cex=0.8);
+  boxplot(fp.st, at=2, add=TRUE, bty='n', xaxt='n', yaxt='n', col=bp.cols[2], boxwex=0.7, cex=0.8);
+  if (pair.type != "all") { text(x=1.5, y=0.78, labels="FrontoParietal", cex=0.9); }
+  stbl <- quant.tbl[which(quant.tbl$comm.id == "FrontoParietal"),]
+  tout <- YuenTTest(diff~type.id, data=stbl, paired=TRUE, alternative="two.sided", trim=do.trim);
+  
+  tmp <- get.format(tout$p.value, digits=3, is.p=TRUE);   # cludgy fix for needing p= in a few cases
+  if (tmp == ".001") { tmp <- "=.001"; }
+  text(x=1.5, y=y.lim[1], labels=paste0("t=", round(tout$statistic,1), " p", tmp), cex=0.9); 
+  
+  boxplot(v.load, at=3, add=TRUE, bty='n', xaxt='n', yaxt='n', col=bp.cols[1], boxwex=0.7, cex=0.8);
+  boxplot(v.st, at=4, add=TRUE, bty='n', xaxt='n', yaxt='n', col=bp.cols[2], boxwex=0.7, cex=0.8);
+  if (pair.type != "all") { text(x=3.5, y=0.78, labels="Visual", cex=0.9); }
+  stbl <- quant.tbl[which(quant.tbl$comm.id == "Visual"),]
+  tout <- YuenTTest(diff~type.id, data=stbl, paired=TRUE, alternative="two.sided", trim=do.trim);
+  text(x=3.5, y=y.lim[1], labels=paste0("t=", round(tout$statistic,1), " p", get.format(tout$p.value, digits=3, is.p=TRUE)), cex=0.9); 
+}
+
+
+for (i in sub.lbls) { quant.RSA.plots(i, "_0and2back"); }
+for (i in sub.lbls) { quant.RSA.plots(i, "_just2back"); }
+for (i in sub.lbls) { quant.RSA.plots(i, "_just0back"); }
+
+@
+
+\vspace{0.9 cm}
+\noindent Robust t-tests for the mean of each set of quantification scores != 0. p-values uncorrected for multiple comparisons. \par
+\vspace{0.2 cm}
+\begin{table}[!htb]
+\begin{minipage}{.5\linewidth}
+\noindent \textbf{Category} \par
+<<code1c, cache=TRUE, echo=FALSE, results='asis'>>=
+
+do.type <- "picture";
+out.tbl <- data.frame(array(NA, c(length(sub.lbls),length(community.ids))));
+colnames(out.tbl) <- community.ids;
+row.names(out.tbl) <- sub.lbls;
+
+for (sub.lbl in sub.lbls) {   # sub.lbl <- "MZ";
+  quant.tbl <- read.table(paste0(in.path, "pairwiseCorrelations/", sub.lbl, "_pairPairwiseDistanceRSAquant_0and2back_z.txt"));
+  for (comm.lbl in community.ids) {   # comm.lbl <- "Visual";
+    stbl <- quant.tbl[which(quant.tbl$comm.id == comm.lbl & quant.tbl$type.id == do.type),]
+    y.out <- YuenTTest(x=stbl$diff, mu=0, alternative="two.sided", trim=do.trim);
+    out.tbl[sub.lbl,comm.lbl] <- paste0(get.format(y.out$statistic,2), " (", get.format(y.out$p.value, is.p=TRUE), ")");  
+  }
+}
+print(xtable(out.tbl), include.rownames=TRUE);
+
+@
+\end{minipage}  
+\begin{minipage}{.5\linewidth}
+\noindent \textbf{Load} \par
+<<code1b, cache=TRUE, echo=FALSE, results='asis'>>=
+
+do.type <- "load";
+out.tbl <- data.frame(array(NA, c(length(sub.lbls),length(community.ids))));
+colnames(out.tbl) <- community.ids;
+row.names(out.tbl) <- sub.lbls;
+
+for (sub.lbl in sub.lbls) {   # sub.lbl <- "MZ";
+  quant.tbl <- read.table(paste0(in.path, "pairwiseCorrelations/", sub.lbl, "_pairPairwiseDistanceRSAquant_0and2back_z.txt"));
+  for (comm.lbl in community.ids) {   # comm.lbl <- "Visual";
+    stbl <- quant.tbl[which(quant.tbl$comm.id == comm.lbl & quant.tbl$type.id == do.type),]
+    y.out <- YuenTTest(x=stbl$diff, mu=0, alternative="two.sided", trim=do.trim);
+    out.tbl[sub.lbl,comm.lbl] <- paste0(get.format(y.out$statistic,2), " (", get.format(y.out$p.value, is.p=TRUE), ")");  
+  }
+}
+print(xtable(out.tbl), include.rownames=TRUE);
+
+@
+\end{minipage} \end{table}
+
+\vspace{0.2 cm}
+\begin{table}[!htb]
+\begin{minipage}{.5\linewidth}
+\noindent \textbf{Load (2-back only)} \par
+<<code1d, cache=TRUE, echo=FALSE, results='asis'>>=
+
+do.type <- "load";
+out.tbl <- data.frame(array(NA, c(length(sub.lbls),length(community.ids))));
+colnames(out.tbl) <- community.ids;
+row.names(out.tbl) <- sub.lbls;
+
+for (sub.lbl in sub.lbls) {   # sub.lbl <- "MZ";
+  quant.tbl <- read.table(paste0(in.path, "pairwiseCorrelations/", sub.lbl, "_pairPairwiseDistanceRSAquant_just2back_z.txt"));
+  for (comm.lbl in community.ids) {   # comm.lbl <- "Visual";
+    stbl <- quant.tbl[which(quant.tbl$comm.id == comm.lbl & quant.tbl$type.id == do.type),]
+    y.out <- YuenTTest(x=stbl$diff, mu=0, alternative="two.sided", trim=do.trim);
+    out.tbl[sub.lbl,comm.lbl] <- paste0(get.format(y.out$statistic,2), " (", get.format(y.out$p.value, is.p=TRUE), ")");  
+  }
+}
+print(xtable(out.tbl), include.rownames=TRUE);
+
+@
+\end{minipage}
+\begin{minipage}{.5\linewidth}
+\noindent \textbf{Load (0-back only)} \par
+<<code1e, cache=TRUE, echo=FALSE, results='asis'>>=
+
+do.type <- "load";
+out.tbl <- data.frame(array(NA, c(length(sub.lbls),length(community.ids))));
+colnames(out.tbl) <- community.ids;
+row.names(out.tbl) <- sub.lbls;
+
+for (sub.lbl in sub.lbls) {   # sub.lbl <- "MZ";
+  quant.tbl <- read.table(paste0(in.path, "pairwiseCorrelations/", sub.lbl, "_pairPairwiseDistanceRSAquant_just0back_z.txt"));
+  for (comm.lbl in community.ids) {   # comm.lbl <- "Visual";
+    stbl <- quant.tbl[which(quant.tbl$comm.id == comm.lbl & quant.tbl$type.id == do.type),]
+    y.out <- YuenTTest(x=stbl$diff, mu=0, alternative="two.sided", trim=do.trim);
+    out.tbl[sub.lbl,comm.lbl] <- paste0(get.format(y.out$statistic,2), " (", get.format(y.out$p.value, is.p=TRUE), ")");  
+  }
+}
+print(xtable(out.tbl), include.rownames=TRUE);
+
+@
+\end{minipage}  \end{table}
+
+\newpage
+\section*{S4.1b Pairwise quantification scores: group comparisons}
+\noindent These are rearranged versions of the boxplots shown in S4.1a to make the group comparisons more visually obvious. The group comparisons are then tested with robust ANOVAs; posthoc tests only shown when model p\textless 0.05. \par
+\vspace{0.2 cm}
+<<code1f, cache=TRUE, echo=FALSE, dev='pdf', fig.height=2.1, fig.width=7, fig.align="center">>=
+layout(matrix(1:4, c(1,4)));
+par(mar=c(2.25, 2.25, 1.75, 0.75), mgp=c(1.1, 0.2, 0), tcl=-0.3);
+# mar: c(bottom, left, top, right) gives the number of lines of margin. Default is c(5, 4, 4, 2) + 0.1.
+
+quant.RSA.plots4 <- function(which.comm, which.quant, which.load) {  # which.comm <- "FrontoParietal"; which.quant <- "load";
+  if (which.quant == "load") { ttl.lbl <- paste(which.load, "Load"); box.clr <- "cornsilk"; }
+  if (which.quant == "picture") { ttl.lbl <- "Category"; box.clr <- "darkkhaki"; }   # "lightblue"
+  plot(x=-1, y=-1, xlim=c(0.5,4.5), ylim=c(-0.19,0.25), xlab="", ylab="Quantification Score", main="", xaxt='n', cex.lab=1, cex.axis=0.9);
+  mtext(side=3, text=paste0(which.comm, ", ", ttl.lbl), line=0.15, cex=0.7); 
+  grid(nx=NA, ny=NULL)
+  axis(side=1, at=1:4, labels=sub.lbls, cex.axis=1); 
+  lines(x=c(-1,5), y=rep(0,2), col='darkgrey');
+  
+  for (slid in 1:length(sub.lbls)) {   # slid <- 1;
+    fname <- paste0(in.path, "pairwiseCorrelations/", sub.lbls[slid], "_pairPairwiseDistanceRSAquant_", which.load, "_z.txt")
+    quant.tbl <- read.table(fname, stringsAsFactors=FALSE);
+    vals <- quant.tbl$diff[which(quant.tbl$comm.id == which.comm & quant.tbl$type.id == which.quant)];
+    
+    temp.tbl <- data.frame(sub.lbls[slid], vals);
+    colnames(temp.tbl)[1] <- "pair.type";
+    if (slid == 1) { plot.tbl <- temp.tbl; } else { plot.tbl <- rbind(plot.tbl, temp.tbl); }
+  }
+  boxplot(plot.tbl$vals~plot.tbl$pair.type, varwidth=TRUE, add=TRUE, bty='n', xaxt='n', yaxt='n', col=box.clr)
+}
+
+load.lbl <- "0and2back";
+quant.RSA.plots4("FrontoParietal", "picture", load.lbl);
+quant.RSA.plots4("Visual", "picture", load.lbl);
+
+for (load.lbl in c("0and2back", "just2back", "just0back")) {   # load.lbl <- "0and2back";
+  quant.RSA.plots4("FrontoParietal", "load", load.lbl);
+  quant.RSA.plots4("Visual", "load", load.lbl);
+}
+
+@
+
+\vspace{0.2 cm}
+\noindent Category \par
+<<code1g, cache=TRUE, echo=FALSE>>=
+
+source(paste0(in.path, "Rallfun-v33.txt"));  # for non-WRS2 t1way; from http://dornsife.usc.edu/labs/rwilcox/software/
+
+mz.tbl <- read.table(paste0(in.path, "pairwiseCorrelations/MZ_pairPairwiseDistanceRSAquant_0and2back_z.txt"), stringsAsFactors=FALSE);
+dz.tbl <- read.table(paste0(in.path, "pairwiseCorrelations/DZ_pairPairwiseDistanceRSAquant_0and2back_z.txt"), stringsAsFactors=FALSE);
+sib.tbl <- read.table(paste0(in.path, "pairwiseCorrelations/SIB_pairPairwiseDistanceRSAquant_0and2back_z.txt"), stringsAsFactors=FALSE);
+unr.tbl <- read.table(paste0(in.path, "pairwiseCorrelations/UNR_pairPairwiseDistanceRSAquant_0and2back_z.txt"), stringsAsFactors=FALSE);
+
+type.lbl <- "picture";
+for (comm.lbl in community.ids) {
+  mz.col <- mz.tbl$diff[which(mz.tbl$comm.id == comm.lbl & mz.tbl$type.id == type.lbl)];
+  dz.col <- dz.tbl$diff[which(dz.tbl$comm.id == comm.lbl & dz.tbl$type.id == type.lbl)];
+  sib.col <- sib.tbl$diff[which(sib.tbl$comm.id == comm.lbl & sib.tbl$type.id == type.lbl)];
+  unr.col <- unr.tbl$diff[which(unr.tbl$comm.id == comm.lbl & unr.tbl$type.id == type.lbl)];
+  x <- list(MZ=mz.col, DZ=dz.col, SIB=sib.col, UNR=unr.col);
+  
+  print(paste(comm.lbl, "Category"));
+  t.out <- t1way(x, tr=do.trim);       # page 323 of stats book
+  print(paste0("F=", t.out$TEST, " p=", t.out$p.value));
+  if (t.out$p.value < 0.05) { print(lincon(x, tr=do.trim)$psihat); }
+  print("", quote=FALSE);
+  print("################################################################################", quote=FALSE);
+}
+
+@
+
+\vspace{0.2 cm}
+\noindent the different Loads \par
+<<code1h, cache=TRUE, echo=FALSE>>=
+
+type.lbl <- "load";
+for (load.lbl in c("0and2back", "just2back", "just0back")) {
+  mz.tbl <- read.table(paste0(in.path, "pairwiseCorrelations/MZ_pairPairwiseDistanceRSAquant_", load.lbl, "_z.txt"), stringsAsFactors=FALSE);
+  dz.tbl <- read.table(paste0(in.path, "pairwiseCorrelations/DZ_pairPairwiseDistanceRSAquant_", load.lbl, "_z.txt"), stringsAsFactors=FALSE);
+  sib.tbl <- read.table(paste0(in.path, "pairwiseCorrelations/SIB_pairPairwiseDistanceRSAquant_", load.lbl, "_z.txt"), stringsAsFactors=FALSE);
+  unr.tbl <- read.table(paste0(in.path, "pairwiseCorrelations/UNR_pairPairwiseDistanceRSAquant_", load.lbl, "_z.txt"), stringsAsFactors=FALSE);
+  
+  for (comm.lbl in community.ids) {  # comm.lbl <- community.ids[1]; 
+    mz.col <- mz.tbl$diff[which(mz.tbl$comm.id == comm.lbl & mz.tbl$type.id == type.lbl)];
+    dz.col <- dz.tbl$diff[which(dz.tbl$comm.id == comm.lbl & dz.tbl$type.id == type.lbl)];
+    sib.col <- sib.tbl$diff[which(sib.tbl$comm.id == comm.lbl & sib.tbl$type.id == type.lbl)];
+    unr.col <- unr.tbl$diff[which(unr.tbl$comm.id == comm.lbl & unr.tbl$type.id == type.lbl)];
+    x <- list(MZ=mz.col, DZ=dz.col, SIB=sib.col, UNR=unr.col);
+    
+    print(paste(comm.lbl, load.lbl));
+    t.out <- t1way(x, tr=do.trim);       # page 323 of stats book
+    print(paste0("F=", t.out$TEST, " p=", t.out$p.value));
+    if (t.out$p.value < 0.05) { print(lincon(x, tr=do.trim)$psihat); }
+    print("", quote=FALSE);
+    print("################################################################################", quote=FALSE);
+  }
+}
+
+@
+
+
+\newpage
+\begin{landscape}
+\section*{S4.2 Pairwise quantification scores: full dataset}
+\noindent Quantification of each set of paired participants' similarity matrix to the Load (blue, L, with both 0 and 2-back) and Category (red, C). The paired participants are arrayed along the x-axis \textbf{in arbitrary order within each type} (MZ, DZ, SIB, UNR), with the two quantifications for each pair of participants in each column. The participants are shown in arbitary order here to provide a contrast for the appearance when participants are sorted by behavioral performance in the next figure. Also, several participants are missing behavioral performance data, so are included here, but omitted from the next graph. \par
+\vspace{0.2 cm} 
+<<code3a, cache=TRUE, echo=FALSE, dev='pdf', fig.height=5, fig.width=9.8, fig.align='center'>>=
+par(mgp=c(1.1, 0.2, 0), tcl=-0.3);
+# mar: c(bottom, left, top, right) gives the number of lines of margin. Default is c(5, 4, 4, 2) + 0.1.
+
+yLim <- c(-0.192,0.22);
+cx2 <- 0.9;
+num.MZ <- length(MZ.1s);
+num.DZ <- length(DZ.1s);
+num.SIB <- length(SIB.1s);
+num.UNR <- length(UNR.1s);
+num.tot <- num.MZ + num.DZ + num.SIB + num.UNR;
+xLim <- c(-1,num.tot+5);
+
+
+# correlations of the people with each other, left and right averaged;
+do.dots <- function(sub.1s, do.comm, pair.type) {   # do.comm <- "FrontoParietal"; pair.type <- "MZ"; sub.1s <- MZ.1s;
+  fname.quant <- paste0(in.path, "pairwiseCorrelations/", pair.type, "_pairPairwiseDistanceRSAquant_0and2back_z.txt");
+  quant.tbl <- read.table(fname.quant, stringsAsFactors=FALSE);
+  
+  loads <- quant.tbl$diff[which(quant.tbl$comm.id == do.comm & quant.tbl$type.id == "load")];
+  pics <- quant.tbl$diff[which(quant.tbl$comm.id == do.comm & quant.tbl$type.id == "picture")];
+  if (length(sub.1s) != length(loads)) { stop("length mismatch"); }
+  
+  for (i in 1:(length(sub.1s))) {    # i <- 1;
+    if (pair.type == "MZ") { plus <- 0; }
+    if (pair.type == "DZ") { plus <- num.MZ + 1; }
+    if (pair.type == "SIB") { plus <- num.MZ + num.DZ + 2; }
+    if (pair.type == "UNR") { plus <- num.MZ + num.DZ + num.SIB + 3; }
+
+    points(x=i+plus, y=loads[i], col="blue", pch="L", cex=0.5);
+    points(x=i+plus, y=pics[i], col="red", pch="C", cex=0.5);
+  }
+}
+
+
+make.plot <- function(cluster.id) {   # cluster.id <- "FrontoParietal";
+  plot(x=0, y=0, xlim=xLim, ylim=yLim, xaxs='i', yaxs='i', xaxt='n', col='white', xlab="", ylab="", main="", cex.axis=0.8);
+  for (i in c(-0.2, -0.1, 0.1, 0.2)) { lines(x=c(-1,400), y=rep(i,2), col='grey', lty='dashed'); }
+  lines(x=c(-1,400), y=c(0,0), col='grey');
+  
+  if (cluster.id == "FrontoParietal") { do.xpd <- FALSE; } else { do.xpd <- TRUE; }   # lines go lower on bottom
+  lines(x=rep(xLim[1], 2), y=c(-0.23,yLim[2]), xpd=do.xpd);
+  lines(x=rep(num.MZ+1, 2), y=c(-0.23,yLim[2]), xpd=do.xpd);
+  lines(x=rep(num.MZ+num.DZ+2, 2), y=c(-0.23,yLim[2]), xpd=do.xpd);
+  lines(x=rep(num.MZ+num.DZ+num.SIB+3, 2), y=c(-0.23,yLim[2]), xpd=do.xpd);
+  lines(x=rep(xLim[2], 2), y=c(-0.23,yLim[2]), xpd=do.xpd);
+  mtext("Quantification Score", side=2, line=1.2, cex=0.9);
+  mtext(cluster.id, side=2, line=2.1, cex=1.2);
+  if (cluster.id == "Visual") {
+    mtext("MZ Twin Pairs", side=1, at=num.MZ/2, cex=0.9, line=0)
+    mtext("DZ Twin Pairs", side=1, at=num.MZ+num.DZ/2+1, cex=0.9, line=0)
+    mtext("Non-Twin Siblings (SIB)", side=1, at=num.MZ+num.DZ+num.SIB/2+2, cex=0.9, line=0)
+    mtext("Paired Unrelated People (UNR)", side=1, at=num.MZ+num.DZ+num.SIB+num.UNR/2+3, cex=0.9, line=0);
+  }
+  
+  do.dots(MZ.1s, cluster.id, "MZ"); 
+  do.dots(DZ.1s, cluster.id, "DZ");
+  do.dots(SIB.1s, cluster.id, "SIB");
+  do.dots(UNR.1s, cluster.id, "UNR");
+  
+  if (cluster.id == "FrontoParietal") {
+    legend(x='topright', legend=c("Load Quantification Score", "Category Quantification Score"), 
+           col=c("blue", "red"), pch=c("L","C"), horiz=FALSE, cex=0.8, box.col='white', bg='white'); 
+  }
+  box();
+}
+
+
+par(fig=c(0,1,0.52,1), mar=c(0.1, 3, 0.5, 0.75))
+make.plot("FrontoParietal");
+par(fig=c(0,1,0,0.52), mar=c(2, 3, 0.1, 0.75), new=TRUE)
+make.plot("Visual");
+par(new=FALSE);  # reset plotting
+
+@
+
+\newpage
+\noindent Quantification of each set of paired participants' similarity matrix to the Load (blue, L, with both 0 and 2-back) and Category (red, S) The paired participants are arrayed along the x-axis in \textbf{order of increasing mean behavioral performance} within each type (MZ, DZ, SIB, UNR), with the two quantification scores in each column. Displayed correlation and regression lines are between the quantification score and subject order (1:n), not the actual mean pairwise behavior. Figure 9 in the main manuscript.  \par
+\vspace{0.2 cm} 
+<<code3b, cache=TRUE, echo=FALSE, dev='pdf', fig.height=5, fig.width=9.8, fig.align='center'>>=
+par(mgp=c(1.1, 0.2, 0), tcl=-0.3);
+# mar: c(bottom, left, top, right) gives the number of lines of margin. Default is c(5, 4, 4, 2) + 0.1.
+
+yLim <- c(-0.192,0.22);
+# to simplify plotting, I manually ran through the code and here are the numbers of missings
+num.MZ.na <- 10; num.DZ.na <- 3; num.SIB.na <- 2; num.UNR.na <- 3;
+
+num.tot <- num.MZ-num.MZ.na + num.DZ-num.DZ.na + num.SIB-num.SIB.na + num.UNR-num.UNR.na;
+xLim <- c(-1,num.tot+5);
+
+
+# correlations of the people with each other, left and right averaged;
+do.dots <- function(sub.1s, sub.2s, do.comm, pair.type, load.suffix) {   
+  # do.comm <- "FrontoParietal"; pair.type <- "MZ"; sub.1s <- MZ.1s; sub.2s <- MZ.2s; 
+  fname.quant <- paste0(in.path, "pairwiseCorrelations/", pair.type, "_pairPairwiseDistanceRSAquant_", load.suffix, "_z.txt");
+  quant.tbl <- read.table(fname.quant, stringsAsFactors=FALSE);
+  loads <- quant.tbl$diff[which(quant.tbl$comm.id == do.comm & quant.tbl$type.id == "load")];
+  pics <- quant.tbl$diff[which(quant.tbl$comm.id == do.comm & quant.tbl$type.id == "picture")];
+  if (length(sub.1s) != length(loads)) { stop("length mismatch"); }
+  
+  # mean d'
+  twin1s <- rep(NA, length(sub.1s)); 
+  twin2s <- rep(NA, length(sub.2s)); 
+  for (i in 1:length(sub.1s)) {   # i <- 1;
+    # behavioral measure for each twin 
+    fname1 <- paste0(in.path, "output_behavioral/", sub.1s[i], "_WMbehaviorSummary_bothruns.txt");
+    fname2 <- paste0(in.path, "output_behavioral/", sub.2s[i], "_WMbehaviorSummary_bothruns.txt");
+    if (file.exists(fname1) & file.exists(fname2)) {
+      tmp <- read.table(fname1, stringsAsFactors=FALSE);
+      ind <- which(tmp$stat.name == "dprime" & tmp$load.type == "all" & tmp$cat.type == "Face&Place" & is.na(tmp$trial.type));
+      if (length(ind) != 1) { stop("length(ind) != 1"); } else { twin1s[i] <- tmp$stat.value[ind]; }
+      tmp <- read.table(fname2, stringsAsFactors=FALSE);
+      ind <- which(tmp$stat.name == "dprime" & tmp$load.type == "all" & tmp$cat.type == "Face&Place" & is.na(tmp$trial.type));
+      if (length(ind) != 1) { stop("length(ind) != 1"); } else { twin2s[i] <- tmp$stat.value[ind]; }
+    }
+  }
+  mean.ds <- (twin1s+twin2s)/2;   # mean.ds <- abs(twin1s-twin2s)
+  order.ds <- order(mean.ds, decreasing=FALSE, na.last=TRUE);
+  num.na <- length(which(is.na(mean.ds)));  # last num.na people shouldn't be in the regression
+  order.ds <- order.ds[1:(length(order.ds)-num.na)];
+  
+  if (pair.type == "MZ") { 
+    plus <- 0; 
+    txt.x <- num.MZ - num.MZ.na + 1;  
+  }
+  if (pair.type == "DZ") { 
+    plus <- num.MZ-num.MZ.na + 1; 
+    txt.x <- num.MZ-num.MZ.na + num.DZ-num.DZ.na + 2; 
+  }
+  if (pair.type == "SIB") { 
+    plus <- num.MZ-num.MZ.na + num.DZ-num.DZ.na + 2;  
+    txt.x <- num.MZ-num.MZ.na + num.DZ-num.DZ.na + num.SIB-num.SIB.na + 3; 
+  }
+  if (pair.type == "UNR") { 
+    plus <- num.MZ-num.MZ.na + num.DZ-num.DZ.na + num.SIB-num.SIB.na + 3; 
+    txt.x <- num.MZ-num.MZ.na + num.DZ-num.DZ.na + num.SIB-num.SIB.na + num.UNR-num.UNR.na + 4; 
+  }
+  
+  if (load.suffix == "0and2back") { load.pch <- "L"; }
+  if (load.suffix == "just2back") { load.pch <- "2"; }
+  if (load.suffix == "just0back") { load.pch <- "0"; }
+    
+  for (i in 1:length(order.ds)) {    # i <- 1;   # plot all not NA d' pairs
+    points(x=i+plus, y=loads[order.ds[i]], col="blue", pch=load.pch, cex=0.5);
+    points(x=i+plus, y=pics[order.ds[i]], col="red", pch="C", cex=0.5);
+  }
+  ii <- (1:length(order.ds))+plus
+  lmObj <- lm(loads[order.ds] ~ ii)
+  fstat <- summary(lmObj)$fstatistic;
+  pval <- pf(fstat[1], fstat[2], fstat[3], lower.tail=FALSE);
+  txt <- paste0("r=", get.format(cor(ii, loads[order.ds]),2), " p=", get.format(pval,3));
+  text(x=txt.x+3, y=-0.175, labels=txt, pos=2, cex=0.75, col='blue');
+  xs <- range(ii)
+  ys <- predict(lmObj, newdata = data.frame(ii = xs))
+  lines(xs, ys, col="blue");  # so truncates line to subject group range
+  
+  lmObj <- lm(pics[order.ds] ~ ii);
+  fstat <- summary(lmObj)$fstatistic;
+  pval <- pf(fstat[1], fstat[2], fstat[3], lower.tail=FALSE);
+  txt <- paste0("r=", get.format(cor(ii, pics[order.ds]),2), " p=", get.format(pval,3));
+  text(x=txt.x+3, y=-0.15, labels=txt, pos=2, cex=0.75, col='red');
+  xs <- range(ii)
+  ys <- predict(lmObj, newdata = data.frame(ii = xs))
+  lines(xs, ys, col="red");  # so truncates line to subject group range
+}
+
+
+
+make.plot <- function(cluster.id, load.suffix) {   # cluster.id <- "FrontoParietal"; load.suffix <- "0and2back";
+  plot(x=0, y=0, xlim=xLim, ylim=yLim, xaxs='i', yaxs='i', xaxt='n', col='white', xlab="", ylab="", main="", cex.axis=0.8);
+  for (i in c(-0.2, -0.1, 0.1, 0.2)) { lines(x=c(-1,400), y=rep(i,2), col='grey', lty='dashed'); }
+  lines(x=c(-1,400), y=c(0,0), col='grey');
+  
+  if (cluster.id == "FrontoParietal") { do.xpd <- FALSE; } else { do.xpd <- TRUE; }   # lines go lower on bottom
+  lines(x=rep(xLim[1], 2), y=c(-1,yLim[2]), xpd=do.xpd);
+  lines(x=rep(num.MZ-num.MZ.na+1, 2), y=c(-1,yLim[2]), xpd=do.xpd);
+  lines(x=rep(num.MZ-num.MZ.na+num.DZ-num.DZ.na+2, 2), y=c(-1,yLim[2]), xpd=do.xpd);
+  lines(x=rep(num.MZ-num.MZ.na+num.DZ-num.DZ.na+num.SIB-num.SIB.na+3, 2), y=c(-1,yLim[2]), xpd=do.xpd);
+  lines(x=rep(xLim[2], 2), y=c(-1,yLim[2]), xpd=do.xpd);
+  mtext("Quantification Score", side=2, line=1.1, cex=0.9);
+  mtext(cluster.id, side=2, line=2.1, cex=1.2);
+  if (cluster.id == "Visual") {
+    mtext("MZ Twin Pairs", side=1, at=(num.MZ-num.MZ.na)/2, cex=0.9, line=0.9)
+    mtext("Low Performers", side=1, at=0, cex=0.7, adj=0, line=-0.2);
+    mtext("High Performers", side=1, at=(num.MZ-num.MZ.na), cex=0.7, adj=1, line=-0.2);
+    
+    mtext("DZ Twin Pairs", side=1, at=num.MZ-num.MZ.na+(num.DZ-num.DZ.na)/2+1, cex=0.9, line=0.9)
+    mtext("Low Performers", side=1, at=num.MZ-num.MZ.na+2, cex=0.7, adj=0, line=-0.2);
+    mtext("High Performers", side=1, at=num.MZ-num.MZ.na+(num.DZ-num.DZ.na)+1, cex=0.7, adj=1, line=-0.2);
+    
+    mtext("Non-Twin Siblings (SIB)", side=1, at=num.MZ-num.MZ.na+num.DZ-num.DZ.na+(num.SIB-num.SIB.na)/2+2, cex=0.9, line=0.9)
+    mtext("Low Performers", side=1, at=num.MZ-num.MZ.na+num.DZ-num.DZ.na+3, cex=0.7, adj=0, line=-0.2);
+    mtext("High Performers", side=1, at=num.MZ-num.MZ.na+num.DZ-num.DZ.na+(num.SIB-num.SIB.na)+2, cex=0.7, adj=1, line=-0.2);
+    
+    mtext("Paired Unrelated People (UNR)", side=1, 
+          at=num.MZ-num.MZ.na+num.DZ-num.DZ.na+num.SIB-num.SIB.na+(num.UNR-num.UNR.na)/2+3, cex=0.9, line=0.9);
+    words.at <- num.MZ-num.MZ.na+num.DZ-num.DZ.na+num.SIB-num.SIB.na;
+    mtext("Low Performers", side=1, at=words.at + 4, cex=0.7, adj=0, line=-0.2);
+    mtext("High Performers", side=1, at=words.at+num.UNR-num.UNR.na+3, cex=0.7, adj=1, line=-0.2);
+  }
+  
+  do.dots(MZ.1s, MZ.2s, cluster.id, "MZ", load.suffix); 
+  do.dots(DZ.1s, DZ.2s, cluster.id, "DZ", load.suffix);
+  do.dots(SIB.1s, SIB.2s, cluster.id, "SIB", load.suffix);
+  do.dots(UNR.1s, UNR.2s, cluster.id, "UNR", load.suffix);
+  
+  if (cluster.id == "FrontoParietal" & load.suffix == "0and2back") {    # adjust legend to type of Load quantification
+    legend(x='topright', legend=c("Load Quantification Score", "Category Quantification Score"), 
+           col=c("blue", "red"), pch=c("L","C"), horiz=FALSE, cex=0.75, box.col='white', bg='white'); 
+  }
+  if (cluster.id == "FrontoParietal" & load.suffix == "just2back") {    
+    legend(x='topright', legend=c("2-back Only Load Quant. Score", "Category Quantification Score"), 
+           col=c("blue", "red"), pch=c("2","C"), horiz=FALSE, cex=0.75, box.col='white', bg='white'); 
+  }
+  if (cluster.id == "FrontoParietal" & load.suffix == "just0back") {    
+    legend(x='topright', legend=c("0-back Only Load Quant. Score", "Category Quantification Score"), 
+           col=c("blue", "red"), pch=c("0","C"), horiz=FALSE, cex=0.75, box.col='white', bg='white'); 
+  }
+  box();
+}
+
+
+par(fig=c(0,1,0.52,1), mar=c(0.1, 3, 0.5, 0.75))
+make.plot("FrontoParietal", "0and2back");
+par(fig=c(0,1,0,0.52), mar=c(2, 3, 0.1, 0.75), new=TRUE)
+make.plot("Visual", "0and2back");
+par(new=FALSE);  # reset plotting
+
+@
+
+\newpage
+\noindent Same, but Load quantified using \textbf{2-back only}.  \par
+\vspace{0.2 cm} 
+<<code3c, cache=TRUE, echo=FALSE, dev='pdf', fig.height=5, fig.width=9.8, fig.align='center'>>=
+par(mgp=c(1.1, 0.2, 0), tcl=-0.3);
+# mar: c(bottom, left, top, right) gives the number of lines of margin. Default is c(5, 4, 4, 2) + 0.1.
+
+par(fig=c(0,1,0.52,1), mar=c(0.1, 3, 0.5, 0.75))
+make.plot("FrontoParietal", "just2back");
+par(fig=c(0,1,0,0.52), mar=c(2, 3, 0.1, 0.75), new=TRUE)
+make.plot("Visual", "just2back");
+par(new=FALSE);  # reset plotting
+
+@
+
+\newpage
+\noindent Same, but Load quantified using \textbf{0-back only}.  \par
+\vspace{0.2 cm} 
+<<code3d, cache=TRUE, echo=FALSE, dev='pdf', fig.height=5, fig.width=9.8, fig.align='center'>>=
+par(mgp=c(1.1, 0.2, 0), tcl=-0.3);
+# mar: c(bottom, left, top, right) gives the number of lines of margin. Default is c(5, 4, 4, 2) + 0.1.
+
+par(fig=c(0,1,0.52,1), mar=c(0.1, 3, 0.5, 0.75))
+make.plot("FrontoParietal", "just0back");
+par(fig=c(0,1,0,0.52), mar=c(2, 3, 0.1, 0.75), new=TRUE)
+make.plot("Visual", "just0back");
+par(new=FALSE);  # reset plotting
+
+@
+
+\end{landscape}
+
+
+\newpage
+\section*{S4.3 Pairwise quantification scores: correlation with behavior}
+\noindent The correlation between the average of pair's behavioral performance (d') and the pairwise quantification as specified by the Load and Category references. The correlations are listed below the graphs; p-values for each in parentheses, from \texttt{hc4wtest}, and uncorrected for multiple comparisons. Tests for pairwise correlation differences follow. \par
+\vspace{0.2 cm}
+<<code4a, cache=TRUE, echo=FALSE, dev='pdf', fig.height=2, fig.width=7.75, fig.align='center'>>=
+layout(matrix(1:4, c(1,4)))
+par(mar=c(2, 1.8, 1.5, 0.5), mgp=c(1.1, 0.2, 0), tcl=-0.3) 
+# mar: c(bottom, left, top, right) gives the number of lines of margin. Default is c(5, 4, 4, 2) + 0.1.
+
+cols <- c('blue', 'red', 'seagreen', 'sienna4');
+
+make.behav.plot <- function(do.comm, ttl, which.on.y, load.suffix) {  
+  # do.comm <- "FrontoParietal"; ttl <- ""; which.on.y <- "pair.mean"; load.suffix <- "0and2back";
+  
+  plot(x=0, y=0, xlim=c(-0.17,0.25), ylim=c(0.25,4.5), col='white', xlab="Quantification Score", ylab="", main="", cex.axis=0.8, cex.lab=0.9);
+  mtext(ttl, side=3, cex=0.7, line=0.1);
+  mtext("d' (Mean of Paired People)", side=2, cex=0.6, line=0.85);
+  lines(x=rep(0,2), y=c(-10,10), col='darkgrey');
+  for (people.lbl in rev(sub.lbls)) {   # people.lbl <- "MZ";    # rev so MZ dots on top
+    sub.1s <- get.ids(paste0(people.lbl, ".1s"));
+    sub.2s <- get.ids(paste0(people.lbl, ".2s"));
+    if (load.suffix == "picture") {    # category is same in all loads, but need to specify one for the filename
+      quant.tbl <- read.table(paste0(in.path, "pairwiseCorrelations/", people.lbl, "_pairPairwiseDistanceRSAquant_0and2back_z.txt"));
+    } else {
+      quant.tbl <- read.table(paste0(in.path, "pairwiseCorrelations/", people.lbl, "_pairPairwiseDistanceRSAquant_", load.suffix, "_z.txt"));
+    }
+    
+    twin1s <- rep(NA, length(sub.1s));   # behavoral measure, twin1
+    twin2s <- rep(NA, length(sub.1s));   # behavoral measure, twin2
+    twin.corrs <- rep(NA, length(sub.1s));   # fMRI measure, for the twin pair
+    for (i in 1:length(sub.1s)) {   # i <- 1;
+      # behavioral measure for each twin
+      fname1 <- paste0(in.path, "output_behavioral/", sub.1s[i], "_WMbehaviorSummary_bothruns.txt");
+      fname2 <- paste0(in.path, "output_behavioral/", sub.2s[i], "_WMbehaviorSummary_bothruns.txt");
+      if (file.exists(fname1) & file.exists(fname2)) {
+        tmp <- read.table(fname1, stringsAsFactors=FALSE);
+        ind <- which(tmp$stat.name == "dprime" & tmp$load.type == "all" & tmp$cat.type == "Face&Place" & is.na(tmp$trial.type));
+        if (length(ind) != 1) { stop("length(ind) != 1"); } else { twin1s[i] <- tmp$stat.value[ind]; }
+        tmp <- read.table(fname2, stringsAsFactors=FALSE);
+        ind <- which(tmp$stat.name == "dprime" & tmp$load.type == "all" & tmp$cat.type == "Face&Place" & is.na(tmp$trial.type));
+        if (length(ind) != 1) { stop("length(ind) != 1"); } else { twin2s[i] <- tmp$stat.value[ind]; }
+        
+        if (load.suffix == "picture") {  # get the quantification scores
+          ind <- which(quant.tbl$sub.conc == paste0(sub.1s[i], ".", sub.2s[i]) & quant.tbl$type.id == "picture" & quant.tbl$comm.id == do.comm);
+        } else {
+          ind <- which(quant.tbl$sub.conc == paste0(sub.1s[i], ".", sub.2s[i]) & quant.tbl$type.id == "load" & quant.tbl$comm.id == do.comm);
+        }
+        if (length(ind) != 1) { stop("didn't find the row?"); }
+        twin.corrs[i] <- quant.tbl$diff[ind];
+      }
+    }
+    
+    if (which.on.y == "pair.mean") { use.ds <- (twin1s+twin2s)/2; }
+    if (which.on.y == "twin1") { use.ds <- twin1s; }
+    if (which.on.y == "twin2") { use.ds <- twin2s; }
+    
+    points(x=twin.corrs, y=use.ds, cex=0.9, col=cols[which(sub.lbls == people.lbl)]);
+    lm.out <- lm(use.ds ~ twin.corrs);
+    abline(lm.out, col=cols[which(sub.lbls == people.lbl)]);
+    #fstat <- summary(lm.out)$fstatistic;
+    #pval <- pf(fstat[1], fstat[2], fstat[3], lower.tail=FALSE);
+    #txt <- paste0("lm R ", get.format(cor(use.ds,twin.corrs, use='complete.obs'),2, FALSE), " (parametric p ", get.format(pval,3, TRUE), ")");
+    #text(x=0, y=0.05, labels=txt, cex=0.9);
+  }
+  legend(x='bottomright', legend=c("MZ", "DZ", "SIB", "UNR"), col=cols, pch=1, horiz=TRUE, bty='n', cex=0.7);
+  box();
+}
+
+
+for (c.name in community.ids) { make.behav.plot(c.name, paste0(c.name, ": Category"), "pair.mean", "picture"); }
+for (c.name in community.ids) { make.behav.plot(c.name, paste0(c.name, ": Load"), "pair.mean", "0and2back"); }
+for (c.name in community.ids) { make.behav.plot(c.name, paste0(c.name, ": Load (2-back only)"), "pair.mean", "just2back"); }
+for (c.name in community.ids) {  make.behav.plot(c.name, paste0(c.name, ": Load (0-back only)"), "pair.mean", "just0back"); }
+
+@
+
+\vspace{0.5 cm}
+<<code4b, cache=TRUE, echo=FALSE, results='asis'>>=
+
+
+get.stats <- function(do.pair, do.comm, which.on.y, load.suffix) {  # do.pair <- "load"; which.on.y <- "pair.mean"; load.suffix <- "0and2back";
+  do.load <- "all";  do.cat <- "Face&Place"; 
+  
+  for (sub.lbl in sub.lbls) {   # sub.lbl <- "MZ"
+    sub.1s <- get.ids(paste0(sub.lbl, ".1s"));
+    sub.2s <- get.ids(paste0(sub.lbl, ".2s"));
+    quant.tbl <- read.table(paste0(in.path, "pairwiseCorrelations/", sub.lbl, "_pairPairwiseDistanceRSAquant_", load.suffix, "_z.txt"));
+    
+    twin1s <- rep(NA, length(sub.1s));   # behavoral measure, twin1
+    twin2s <- rep(NA, length(sub.1s));   # behavoral measure, twin2
+    twin.corrs <- rep(NA, length(sub.1s));   # fMRI measure, for the twin pair
+    for (i in 1:length(sub.1s)) {   # i <- 1;
+      # behavioral measure for each twin
+      fname1 <- paste0(in.path, "output_behavioral/", sub.1s[i], "_WMbehaviorSummary_bothruns.txt");
+      fname2 <- paste0(in.path, "output_behavioral/", sub.2s[i], "_WMbehaviorSummary_bothruns.txt");
+      if (file.exists(fname1) & file.exists(fname2)) {
+        tmp <- read.table(fname1, stringsAsFactors=FALSE);
+        ind <- which(tmp$stat.name == "dprime" & tmp$load.type == do.load & tmp$cat.type == do.cat & is.na(tmp$trial.type));
+        if (length(ind) != 1) { stop("length(ind) != 1"); } else { twin1s[i] <- tmp$stat.value[ind]; }
+        tmp <- read.table(fname2, stringsAsFactors=FALSE);
+        ind <- which(tmp$stat.name == "dprime" & tmp$load.type == do.load & tmp$cat.type == do.cat & is.na(tmp$trial.type));
+        if (length(ind) != 1) { stop("length(ind) != 1"); } else { twin2s[i] <- tmp$stat.value[ind]; }
+        
+        # get the quantification for the people in region do.comm to reference do.pair
+        ind <- which(quant.tbl$sub.conc == paste0(sub.1s[i], ".", sub.2s[i]) & quant.tbl$type.id == do.pair & quant.tbl$comm.id == do.comm);
+        if (length(ind) != 1) { stop("didn't find the row?"); }
+        twin.corrs[i] <- quant.tbl$diff[ind];
+      }
+    }
+    
+    if (which.on.y == "pair.mean") { use.ds <- (twin1s+twin2s)/2; }
+    if (which.on.y == "twin1") { use.ds <- twin1s; }
+    if (which.on.y == "twin2") { use.ds <- twin2s; }
+    
+    if (sub.lbl == "MZ") { MZ.x <- twin.corrs; MZ.y <- use.ds; }
+    if (sub.lbl == "DZ") { DZ.x <- twin.corrs; DZ.y <- use.ds; }
+    if (sub.lbl == "SIB") { SIB.x <- twin.corrs; SIB.y <- use.ds; }
+    if (sub.lbl == "UNR") { UNR.x <- twin.corrs; UNR.y <- use.ds; }
+  }
+
+  # test if the R squared for each participant group is different than zero;  page 527 of Wilcox
+  MZ <- hc4wtest(MZ.x, MZ.y);          MZ.cor <- cor(MZ.x, MZ.y, use='pairwise.complete.obs');
+  DZ <- hc4wtest(DZ.x, DZ.y);          DZ.cor <- cor(DZ.x, DZ.y, use='pairwise.complete.obs');
+  SIB <- hc4wtest(SIB.x, SIB.y);       SIB.cor <- cor(SIB.x, SIB.y, use='pairwise.complete.obs');
+  UNR <- hc4wtest(UNR.x, UNR.y);       UNR.cor <- cor(UNR.x, UNR.y, use='pairwise.complete.obs');
+  out.row <- c(paste0(get.format(MZ.cor,2), " (", get.format(MZ$p.value,3, TRUE), ")"),
+               paste0(get.format(DZ.cor,2), " (", get.format(DZ$p.value,3, TRUE), ")"),
+               paste0(get.format(SIB.cor,2), " (", get.format(SIB$p.value,3, TRUE), ")"),
+               paste0(get.format(UNR.cor,2), " (", get.format(UNR$p.value,3, TRUE), ")"));
+  
+  
+  
+  # test the pairwise difference significance means and p-values for later tables
+  # tests hypothesis of equal Pearson correlations; see Wilcox book, page 514
+  pair.tbl <- array("", c(length(sub.lbls), length(sub.lbls)));
+  rownames(pair.tbl) <- sub.lbls;
+  colnames(pair.tbl) <- sub.lbls;
+  
+  val <- twohc4cor(MZ.x, MZ.y, DZ.x, DZ.y);       
+  pair.tbl["DZ","MZ"] <- paste(get.format(val,3,TRUE), get.stars.b(val,6));
+  val <- twohc4cor(MZ.x, MZ.y, SIB.x, SIB.y)
+  pair.tbl["SIB","MZ"] <- paste(get.format(val,3,TRUE), get.stars.b(val,6));
+  val <- twohc4cor(MZ.x, MZ.y, UNR.x, UNR.y)
+  pair.tbl["UNR","MZ"] <- paste(get.format(val,3,TRUE), get.stars.b(val,6));
+  val <- twohc4cor(DZ.x, DZ.y, SIB.x, SIB.y)
+  pair.tbl["SIB","DZ"] <- paste(get.format(val,3,TRUE), get.stars.b(val,6));
+  val <- twohc4cor(DZ.x, DZ.y, UNR.x, UNR.y)
+  pair.tbl["UNR","DZ"] <- paste(get.format(val,3,TRUE), get.stars.b(val,6));
+  val <-twohc4cor(SIB.x, SIB.y, UNR.x, UNR.y)
+  pair.tbl["UNR","SIB"] <- paste(get.format(val,3,TRUE), get.stars.b(val,6));
+
+  return(list(out.row, pair.tbl));
+}
+
+fpP <- get.stats("picture", "FrontoParietal", "pair.mean", "0and2back");
+fpL <- get.stats("load", "FrontoParietal", "pair.mean", "0and2back"); 
+fpL2 <- get.stats("load", "FrontoParietal", "pair.mean", "just2back"); 
+fpL0 <- get.stats("load", "FrontoParietal", "pair.mean", "just0back"); 
+
+vP <- get.stats("picture", "Visual", "pair.mean", "0and2back");
+vL <- get.stats("load", "Visual", "pair.mean", "0and2back"); 
+vL2 <- get.stats("load", "Visual", "pair.mean", "just2back"); 
+vL0 <- get.stats("load", "Visual", "pair.mean", "just0back"); 
+
+
+for.xtbl <- data.frame(rbind(fpP[[1]], vP[[1]], fpL[[1]], vL[[1]], fpL2[[1]], vL2[[1]], fpL0[[1]], vL0[[1]]));
+colnames(for.xtbl) <- sub.lbls;
+rownames(for.xtbl) <- c("FrontoParietal, Category", "Visual, Category", "FrontoParietal, Load", "Visual, Load", "FrontoParietal, Load (2-back only)", 
+                        "Visual, Load (2-back only)", "FrontoParietal, Load (0-back only)", "Visual, Load  (0-back only)");
+print(xtable(for.xtbl), include.rownames=TRUE);
+
+@
+
+\vspace{0.4 cm}
+\begin{table}[!htb]
+\begin{minipage}{.5\linewidth}
+\noindent \textbf{FrontoParietal, Category} \par
+<<code4c, cache=TRUE, echo=FALSE, results='asis'>>=
+
+print(xtable(fpP[[2]]));
+
+@
+\end{minipage}
+\begin{minipage}{.5\linewidth}
+\noindent \textbf{Visual, Category} \par
+<<code4d, cache=TRUE, echo=FALSE, results='asis'>>=
+
+print(xtable(vP[[2]]));
+
+@
+\end{minipage}\end{table}
+
+\begin{table}[!htb]
+\begin{minipage}{.5\linewidth}
+\noindent \textbf{FrontoParietal, Load} \par
+<<code4e, cache=TRUE, echo=FALSE, results='asis'>>=
+
+print(xtable(fpL[[2]]));
+
+@
+\end{minipage}
+\begin{minipage}{.5\linewidth}
+\noindent \textbf{Visual, Load} \par
+<<code4f, cache=TRUE, echo=FALSE, results='asis'>>=
+
+print(xtable(vL[[2]]));
+
+@
+\end{minipage}\end{table}
+
+\newpage
+\begin{table}[!htb]
+\begin{minipage}{.5\linewidth}
+\noindent \textbf{FrontoParietal, Load (2-back only)} \par
+<<code4g, cache=TRUE, echo=FALSE, results='asis'>>=
+
+print(xtable(fpL2[[2]]));
+
+@
+\end{minipage}
+\begin{minipage}{.5\linewidth}
+\noindent \textbf{Visual, Load (2-back only)} \par
+<<code4h, cache=TRUE, echo=FALSE, results='asis'>>=
+
+print(xtable(vL2[[2]]));
+
+@
+\end{minipage}\end{table}
+
+\begin{table}[!htb]
+\begin{minipage}{.5\linewidth}
+\noindent \textbf{FrontoParietal, Load (0-back only)} \par
+<<code4i, cache=TRUE, echo=FALSE, results='asis'>>=
+
+print(xtable(fpL0[[2]]));
+
+@
+\end{minipage}
+\begin{minipage}{.5\linewidth}
+\noindent \textbf{Visual, Load (0-back only)} \par
+<<code4j, cache=TRUE, echo=FALSE, results='asis'>>=
+
+print(xtable(vL0[[2]]));
+
+@
+\end{minipage}\end{table}
+
+
+\newpage
+\section*{S4.4 Pairwise quantification scores: multiple regression}
+\noindent These models have pairwise quantification score as the outcome variable, predicted by the d' of person 1 of each pair (\texttt{dprime.1}), d' of person 2 of the pair (\texttt{dprime.2}), single-subject quantification score of person 1 (\texttt{q.1}), or single-subject quantification score of person 2 (\texttt{q.2}).  \par
+\vspace{0.5 cm}
+<<code5a, cache=TRUE, echo=FALSE>>=
+
+# rearrange the data for the multiple regression
+single.tbl <- read.table(paste0(in.path, "selfCorrelations/all_selfPairwiseDistanceRSAquant_z.txt"));
+
+get.tbl <- function(people.lbl, do.quant, do.comm, load.suffix) {  
+  # people.lbl <- "MZ"; do.quant <- "load"; do.comm <- "FrontoParietal"; load.suffix <- "0and2back";
+  sub.1s <- get.ids(paste0(people.lbl, ".1s"));
+  sub.2s <- get.ids(paste0(people.lbl, ".2s"));
+  pair.tbl <- read.table(paste0(in.path, "pairwiseCorrelations/", people.lbl, "_pairPairwiseDistanceRSAquant_", load.suffix, "_z.txt"));
+  
+  out.tbl <- data.frame(array(NA, c(length(sub.1s),5)));
+  colnames(out.tbl) <- c("dprime.1", "dprime.2", "q.pairwise", "q.1", "q.2");
+  for (i in 1:length(sub.1s)) {   # i <- 1;
+    # d'
+    fname <- paste0(in.path, "output_behavioral/", sub.1s[i], "_WMbehaviorSummary_bothruns.txt");
+    if (file.exists(fname)) {   # have behavioral measures for this person
+      b.tbl <- read.table(fname, stringsAsFactors=FALSE);
+      ind <- which(b.tbl$stat.name == "dprime" & b.tbl$load.type == "all" & b.tbl$cat.type == "Face&Place" & is.na(b.tbl$trial.type));
+      if (length(ind) != 1) { stop("length(ind) != 1"); } else { out.tbl$dprime.1[i] <- b.tbl$stat.value[ind]; }
+    }
+    fname <- paste0(in.path, "output_behavioral/", sub.2s[i], "_WMbehaviorSummary_bothruns.txt");
+    if (file.exists(fname)) {   # have behavioral measures for this person
+      b.tbl <- read.table(fname, stringsAsFactors=FALSE);
+      ind <- which(b.tbl$stat.name == "dprime" & b.tbl$load.type == "all" & b.tbl$cat.type == "Face&Place" & is.na(b.tbl$trial.type));
+      if (length(ind) != 1) { stop("length(ind) != 1"); } else { out.tbl$dprime.2[i] <- b.tbl$stat.value[ind]; }
+    }
+    
+    
+    # individual quantification scores
+    out.tbl$q.1[i] <- single.tbl$diff[which(single.tbl$sub.id == sub.1s[i] & single.tbl$comm.id == do.comm & single.tbl$type.id == do.quant)];
+    out.tbl$q.2[i] <- single.tbl$diff[which(single.tbl$sub.id == sub.2s[i] & single.tbl$comm.id == do.comm & single.tbl$type.id == do.quant)];
+    
+    # pairwise
+    ind <- which(pair.tbl$sub.conc == paste0(sub.1s[i], ".", sub.2s[i]) & pair.tbl$type.id == do.quant & pair.tbl$comm.id == do.comm);
+    if (length(ind) == 1) { out.tbl$q.pairwise[i] <- pair.tbl$diff[ind]; } else { stop("didn't find the row?"); }   
+  }
+  
+  out.tbl <- out.tbl[which(!is.na(out.tbl$dprime.1) & !is.na(out.tbl$dprime.2)),];   # complete cases only
+
+  return(out.tbl);
+}
+
+@
+
+\noindent \textbf{Load, FrontoParietal, MZ twins.}  \par
+<<code5b, cache=TRUE, echo=TRUE, size='small'>>=
+
+mreg.tbl <- get.tbl("MZ", "load", "FrontoParietal", "0and2back");  # Load quantified with 0 & 2-back trials
+lm.full <- lm(mreg.tbl$q.pairwise ~ mreg.tbl$dprime.1 + mreg.tbl$dprime.2 + mreg.tbl$q.1 + mreg.tbl$q.2); 
+summary(lm.full);   # full model F very similar to with just 2-back; dprime.2 and q.1 less sig. here
+beta.coef(lm.full);  # standardized b values (betas) 
+
+lm.d12 <- lm(mreg.tbl$q.pairwise ~ mreg.tbl$dprime.1 + mreg.tbl$dprime.2); 
+summary(lm.d12);   # just d primes significant
+anova(lm.full, lm.d12);   # full better than just d primes
+
+lm.q12 <- lm(mreg.tbl$q.pairwise ~ mreg.tbl$q.1 + mreg.tbl$q.2); 
+summary(lm.q12);   # just qs significant
+anova(lm.full, lm.q12);   # full better than just single-subject q scores
+
+###############################################################################################################
+mreg.tbl <- get.tbl("MZ", "load", "FrontoParietal", "just2back");     # Load quantified with 2-back trials only
+lm.full <- lm(mreg.tbl$q.pairwise ~ mreg.tbl$dprime.1 + mreg.tbl$dprime.2 + mreg.tbl$q.1 + mreg.tbl$q.2); 
+summary(lm.full);   # full model F very similar to with just 2-back; dprime.2 and q.1 less sig. here
+beta.coef(lm.full);  # standardized b values (betas)
+
+lm.d12 <- lm(mreg.tbl$q.pairwise ~ mreg.tbl$dprime.1 + mreg.tbl$dprime.2); 
+summary(lm.d12);    # just d primes significant
+anova(lm.full, lm.d12);   # full better than just d primes
+
+lm.q12 <- lm(mreg.tbl$q.pairwise ~ mreg.tbl$q.1 + mreg.tbl$q.2); 
+summary(lm.q12);    # just qs significant
+anova(lm.full, lm.q12);   # full better than just single-subject q scores
+
+###############################################################################################################
+mreg.tbl <- get.tbl("MZ", "load", "FrontoParietal", "just0back");     # Load quantified with 0-back trials only
+lm.full <- lm(mreg.tbl$q.pairwise ~ mreg.tbl$dprime.1 + mreg.tbl$dprime.2 + mreg.tbl$q.1 + mreg.tbl$q.2); 
+summary(lm.full);   # full model with just 0-back Load quantification less significant
+beta.coef(lm.full);  
+
+lm.d12 <- lm(mreg.tbl$q.pairwise ~ mreg.tbl$dprime.1 + mreg.tbl$dprime.2); 
+summary(lm.d12);    # not significant
+
+lm.q12 <- lm(mreg.tbl$q.pairwise ~ mreg.tbl$q.1 + mreg.tbl$q.2); 
+summary(lm.q12);   # just qs significant
+anova(lm.full, lm.q12);     # full NOT better than just single-subject q scores
+
+@
+
+\newpage
+\noindent \textbf{Load, FrontoParietal, DZ twins.}  \par
+<<code5c, cache=TRUE, echo=TRUE, size='small'>>=
+
+mreg.tbl <- get.tbl("DZ", "load", "FrontoParietal", "0and2back");  # Load quantified with 0 & 2-back trials
+lm.full <- lm(mreg.tbl$q.pairwise ~ mreg.tbl$dprime.1 + mreg.tbl$dprime.2 + mreg.tbl$q.1 + mreg.tbl$q.2); 
+summary(lm.full);   # q scores more significant than d' (opposite of when just 2-back Load quantification)
+beta.coef(lm.full);   # standardized b values (betas)
+
+lm.d12 <- lm(mreg.tbl$q.pairwise ~ mreg.tbl$dprime.1 + mreg.tbl$dprime.2); 
+summary(lm.d12);   # model significant, both people's d's significant
+anova(lm.full, lm.d12);   # full better than just d primes
+
+lm.q12 <- lm(mreg.tbl$q.pairwise ~ mreg.tbl$q.1 + mreg.tbl$q.2); 
+summary(lm.q12)   # model significant, both people's qs significant
+anova(lm.full, lm.q12);   # full marginally better than just single-subject q scores
+
+###############################################################################################################
+mreg.tbl <- get.tbl("DZ", "load", "FrontoParietal", "just2back");   # Load quantified with 2-back trials only
+lm.full <- lm(mreg.tbl$q.pairwise ~ mreg.tbl$dprime.1 + mreg.tbl$dprime.2 + mreg.tbl$q.1 + mreg.tbl$q.2); 
+summary(lm.full);   # q scores more significant than d' (opposite of when just 2-back Load quantification)
+beta.coef(lm.full);   # standardized b values (betas)
+
+lm.d12 <- lm(mreg.tbl$q.pairwise ~ mreg.tbl$dprime.1 + mreg.tbl$dprime.2); 
+summary(lm.d12);   # model significant, both people's d's significant
+anova(lm.full, lm.d12);   # full better than just d primes
+
+lm.q12 <- lm(mreg.tbl$q.pairwise ~ mreg.tbl$q.1 + mreg.tbl$q.2); 
+summary(lm.q12)   # model significant, both people's qs significant
+anova(lm.full, lm.q12);   # full marginally better than just single-subject q scores
+
+@
+
+\newpage
+\noindent \textbf{Load, FrontoParietal, SIB.}  \par
+<<code5d, cache=TRUE, echo=TRUE, size='small'>>=
+
+mreg.tbl <- get.tbl("SIB", "load", "FrontoParietal", "0and2back");  # Load quantified with 0 & 2-back trials
+lm.full <- lm(mreg.tbl$q.pairwise ~ mreg.tbl$dprime.1 + mreg.tbl$dprime.2 + mreg.tbl$q.1 + mreg.tbl$q.2); 
+summary(lm.full);   # overall model, q.2 sig.
+beta.coef(lm.full);   # standardized b values (betas)
+
+lm.d12 <- lm(mreg.tbl$q.pairwise ~ mreg.tbl$dprime.1 + mreg.tbl$dprime.2); 
+summary(lm.d12);   # model significant; dprime.2 more sig. than dprime.1
+anova(lm.full, lm.d12);   # full better than just d primes
+
+lm.q12 <- lm(mreg.tbl$q.pairwise ~ mreg.tbl$q.1 + mreg.tbl$q.2); 
+summary(lm.q12)   # model significant; q.2 significant (not q.1)
+anova(lm.full, lm.q12);   # full marginally better than just single-subject q scores
+
+###############################################################################################################
+mreg.tbl <- get.tbl("SIB", "load", "FrontoParietal", "just2back");   # Load quantified with 2-back trials only
+lm.full <- lm(mreg.tbl$q.pairwise ~ mreg.tbl$dprime.1 + mreg.tbl$dprime.2 + mreg.tbl$q.1 + mreg.tbl$q.2); 
+summary(lm.full);   # overall model, q.2 & dprime.1 sig.
+beta.coef(lm.full);   # standardized b values (betas)
+
+lm.d12 <- lm(mreg.tbl$q.pairwise ~ mreg.tbl$dprime.1 + mreg.tbl$dprime.2); 
+summary(lm.d12);   # model significant; dprime.1 more sig. than dprime.2
+anova(lm.full, lm.d12);   # full marginally better than just d primes
+
+lm.q12 <- lm(mreg.tbl$q.pairwise ~ mreg.tbl$q.1 + mreg.tbl$q.2); 
+summary(lm.q12)   # model significant; q.2 significant (not q.1)
+anova(lm.full, lm.q12);   # full better than just single-subject q scores
+
+@
+
+\newpage
+\noindent \textbf{Load, FrontoParietal, UNR.} \par
+<<code5e, cache=TRUE, echo=TRUE, size='small'>>=
+
+mreg.tbl <- get.tbl("UNR", "load", "FrontoParietal", "0and2back");  # Load quantified with 0 & 2-back trials
+lm.full <- lm(mreg.tbl$q.pairwise ~ mreg.tbl$dprime.1 + mreg.tbl$dprime.2 + mreg.tbl$q.1 + mreg.tbl$q.2); 
+summary(lm.full);   # full model not significant
+
+###############################################################################################################
+mreg.tbl <- get.tbl("UNR", "load", "FrontoParietal", "just2back");   # Load quantified with 2-back trials only
+lm.full <- lm(mreg.tbl$q.pairwise ~ mreg.tbl$dprime.1 + mreg.tbl$dprime.2 + mreg.tbl$q.1 + mreg.tbl$q.2); 
+summary(lm.full);   # full model not significant
+
+@
+
+\newpage
+\noindent \textbf{Load, Visual}  
+<<code5f, cache=TRUE, echo=TRUE, size='small'>>=
+
+mreg.tbl <- get.tbl("MZ", "load", "Visual", "0and2back");
+lm.full <- lm(mreg.tbl$q.pairwise ~ mreg.tbl$dprime.1 + mreg.tbl$dprime.2 + mreg.tbl$q.1 + mreg.tbl$q.2); 
+summary(lm.full);     # not significant
+
+#########################################################
+mreg.tbl <- get.tbl("DZ", "load", "Visual", "0and2back");
+mreg.tbl <- mreg.tbl[which(!is.na(mreg.tbl$dprime.1) & !is.na(mreg.tbl$dprime.2)),];   # complete cases only
+lm.full <- lm(mreg.tbl$q.pairwise ~ mreg.tbl$dprime.1 + mreg.tbl$dprime.2 + mreg.tbl$q.1 + mreg.tbl$q.2); 
+summary(lm.full);      # not significant
+
+#########################################################
+mreg.tbl <- get.tbl("SIB", "load", "Visual", "0and2back");
+mreg.tbl <- mreg.tbl[which(!is.na(mreg.tbl$dprime.1) & !is.na(mreg.tbl$dprime.2)),];   # complete cases only
+lm.full <- lm(mreg.tbl$q.pairwise ~ mreg.tbl$dprime.1 + mreg.tbl$dprime.2 + mreg.tbl$q.1 + mreg.tbl$q.2); 
+summary(lm.full);     # model and dprime.1 significant
+beta.coef(lm.full);   
+
+#########################################################
+mreg.tbl <- get.tbl("UNR", "load", "Visual", "0and2back");
+mreg.tbl <- mreg.tbl[which(!is.na(mreg.tbl$dprime.1) & !is.na(mreg.tbl$dprime.2)),];   # complete cases only
+lm.full <- lm(mreg.tbl$q.pairwise ~ mreg.tbl$dprime.1 + mreg.tbl$dprime.2 + mreg.tbl$q.1 + mreg.tbl$q.2); 
+summary(lm.full);      # not significant
+
+@
+
+\newpage
+\noindent \textbf{Category, FrontoParietal}  \par
+<<code5g, cache=TRUE, echo=TRUE, size='small'>>=
+
+mreg.tbl <- get.tbl("MZ", "picture", "FrontoParietal", "0and2back");
+lm.full <- lm(mreg.tbl$q.pairwise ~ mreg.tbl$dprime.1 + mreg.tbl$dprime.2 + mreg.tbl$q.1 + mreg.tbl$q.2); 
+summary(lm.full);   
+beta.coef(lm.full);   # standardized b values (betas)
+
+#########################################################
+mreg.tbl <- get.tbl("DZ", "picture", "FrontoParietal", "0and2back");
+lm.full <- lm(mreg.tbl$q.pairwise ~ mreg.tbl$dprime.1 + mreg.tbl$dprime.2 + mreg.tbl$q.1 + mreg.tbl$q.2); 
+summary(lm.full);     # full model not significant
+
+#########################################################
+mreg.tbl <- get.tbl("SIB", "picture", "FrontoParietal", "0and2back");
+lm.full <- lm(mreg.tbl$q.pairwise ~ mreg.tbl$dprime.1 + mreg.tbl$dprime.2 + mreg.tbl$q.1 + mreg.tbl$q.2); 
+summary(lm.full);     # full model not significant
+
+#########################################################
+mreg.tbl <- get.tbl("UNR", "picture", "FrontoParietal", "0and2back");
+lm.full <- lm(mreg.tbl$q.pairwise ~ mreg.tbl$dprime.1 + mreg.tbl$dprime.2 + mreg.tbl$q.1 + mreg.tbl$q.2); 
+summary(lm.full);     # full model not significant
+
+@
+
+\newpage
+\noindent \textbf{Category, Visual, MZ twins.}  \par
+<<code5h, cache=TRUE, echo=TRUE, size='small'>>=
+
+mreg.tbl <- get.tbl("MZ", "picture", "Visual", "0and2back");
+lm.full <- lm(mreg.tbl$q.pairwise ~ mreg.tbl$dprime.1 + mreg.tbl$dprime.2 + mreg.tbl$q.1 + mreg.tbl$q.2); 
+summary(lm.full);   # only qs predict
+beta.coef(lm.full);   # standardized b values (betas)
+
+lm.d12 <- lm(mreg.tbl$q.pairwise ~ mreg.tbl$dprime.1 + mreg.tbl$dprime.2); 
+summary(lm.d12);  # model significant, but not either predictor
+anova(lm.full, lm.d12);   # full MUCH better than just d primes
+
+lm.q12 <- lm(mreg.tbl$q.pairwise ~ mreg.tbl$q.1 + mreg.tbl$q.2); 
+summary(lm.q12);  # significant, as are both predictors
+anova(lm.full, lm.q12);   # full NOT better than just single-subject q scores
+
+@
+
+\newpage
+\noindent \textbf{Category, Visual, DZ twins.} \par
+<<code5i, cache=TRUE, echo=TRUE, size='small'>>=
+
+mreg.tbl <- get.tbl("DZ", "picture", "Visual", "0and2back");
+lm.full <- lm(mreg.tbl$q.pairwise ~ mreg.tbl$dprime.1 + mreg.tbl$dprime.2 + mreg.tbl$q.1 + mreg.tbl$q.2); 
+summary(lm.full);   # only qs predict
+beta.coef(lm.full); 
+
+lm.d12 <- lm(mreg.tbl$q.pairwise ~ mreg.tbl$dprime.1 + mreg.tbl$dprime.2); 
+summary(lm.d12);  # significant, as are both predictors
+anova(lm.full, lm.d12);   # full MUCH better than just d primes
+
+lm.q12 <- lm(mreg.tbl$q.pairwise ~ mreg.tbl$q.1 + mreg.tbl$q.2); 
+summary(lm.q12);  # significant, as are both predictors
+anova(lm.full, lm.q12);   # full NOT better than just single-subject q scores
+
+@
+
+\newpage
+\noindent \textbf{Category, Visual, SIB.} \par
+<<code5j, cache=TRUE, echo=TRUE, size='small'>>=
+
+mreg.tbl <- get.tbl("SIB", "picture", "Visual", "0and2back");
+lm.full <- lm(mreg.tbl$q.pairwise ~ mreg.tbl$dprime.1 + mreg.tbl$dprime.2 + mreg.tbl$q.1 + mreg.tbl$q.2); 
+summary(lm.full);   # only qs predict
+beta.coef(lm.full); 
+
+lm.d12 <- lm(mreg.tbl$q.pairwise ~ mreg.tbl$dprime.1 + mreg.tbl$dprime.2); 
+summary(lm.d12);  # significant; dprime.2 is as a predictor
+anova(lm.full, lm.d12);   # full MUCH better than just d primes
+
+lm.q12 <- lm(mreg.tbl$q.pairwise ~ mreg.tbl$q.1 + mreg.tbl$q.2); 
+summary(lm.q12);  # significant, as are both predictors
+anova(lm.full, lm.q12);   # full NOT better than just single-subject q scores
+
+@
+
+\newpage
+\noindent \textbf{Category, Visual, UNR.} \par
+<<code5k, cache=TRUE, echo=TRUE, size='small'>>=
+
+mreg.tbl <- get.tbl("UNR", "picture", "Visual", "0and2back");
+lm.full <- lm(mreg.tbl$q.pairwise ~ mreg.tbl$dprime.1 + mreg.tbl$dprime.2 + mreg.tbl$q.1 + mreg.tbl$q.2); 
+summary(lm.full);   # only qs predict
+beta.coef(lm.full); 
+
+lm.d12 <- lm(mreg.tbl$q.pairwise ~ mreg.tbl$dprime.1 + mreg.tbl$dprime.2); 
+summary(lm.d12);  # model not significant
+
+lm.q12 <- lm(mreg.tbl$q.pairwise ~ mreg.tbl$q.1 + mreg.tbl$q.2); 
+summary(lm.q12);  # significant, as are both predictors
+anova(lm.full, lm.q12);   # full NOT better than just single-subject q scores
+
+@
+
+
+\end{document}

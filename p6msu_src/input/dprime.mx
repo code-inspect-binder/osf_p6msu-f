@@ -1,0 +1,114 @@
+! DATA		: continuous
+! INPUT		: raw data
+! UNI/BI/MULTI	: univariate with sex-adjusted means
+! DATA-GROUPS	: MZ DZ+SIBLING
+! MEANS MODEL	: grand mean, sex effect
+! VARIANCE COVARIANCE MODEL(S)	## 1.ACE  2.AE  3.CE  4.E
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+
+#Define nvar 1				! univariate analysis			 
+#Define ndef 1				! number of covariates (sex)
+
+G1: calculation group
+ Data Calc NGroups=3			! calculation, MZ and DZ+SIB
+
+  Begin matrices;
+     X Lower nvar nvar Free		! additive genetic 
+     Y Lower nvar nvar Free		! common environmental 
+     Z Lower nvar nvar Free		! individual-specific environmental  
+     H Full 1 1	fix			! .5 for DZ+SIB genetic correlation
+     G Full 1 nvar  free		! mean 
+     P Full ndef nvar Free		! regressiob coefficient of sex on mean
+  End matrices;
+
+ Matrix H .5				! Matrix H is fixed and contains .5
+
+  Begin algebra;
+     A= X*X' ;			  	! additive genetic variance
+     C= Y*Y' ;   			! common environmental variance
+     E= Z*Z' ;				! individual-specific environmental variance
+
+     V = A%(A+C+E) | C%(A+C+E) | E%(A+C+E) ;	    !standardized variance components
+  End algebra;
+
+ st 0.5 X 1 1 1				! provide starting values
+ st 0.5 Y 1 1 1
+ st 0.4 Z 1 1 1
+ st 0.5 G 1 1 1
+ st 0.8 P 1 1 1 
+end
+
+G2: MZ twins, datagroup
+ Data NInput_vars= 4			! number of variables in input file 
+ Rectangular file=filemz.dat
+
+ LABELS
+ zygo sex dprime1 dprime2     
+ Select if  zygo = 1 ; 			! select MZ's
+ Select sex dprime1 dprime2 ; 			! select sex as covariate, same-sex pairs so sex of one twin sufficient and the variable of interest in each twin	
+ Definition sex ;
+ Matrices = group 1 
+    N Full 1 ndef  fix			! observed sex for twin 1 - will be same for twin 2 by design
+ end matrices;
+
+Specify N sex
+
+     Means G+N*P | G+N*P;		! model for means, assuming grand mean twin 1 = grand mean twin 2 and same effect of sex
+     Covariances			! model for MZ variance/covariances
+	A+C+E	| A+C	 _
+	A+C	| A+C+E	;
+	
+Options RSiduals
+End
+
+G3: DZ twins, datagroup
+ Data NInput_vars= 4			
+ REctangular file=filedzsib.dat		! read in raw datafile
+
+ LABELS
+ zygo sex dprime1 dprime2
+ Select if  zygo = 3 ; 				! select DZ+SIB
+ Select sex dprime1 dprime2 ; 	
+ Definition sex ;
+
+  Matrices = group 1 
+    N Full 1 ndef  fix			
+  End matrices;
+
+Specify N sex
+
+    Means G+N*P | G+N*P ;		
+    Covariances				! model for DZ and SIB variance/covariances -- not modeling T as DZ=SIB
+	A+C+E	| H@A+C	 _
+	H@A+C	| A+C+E	;
+
+ Options RSiduals
+ Option Multiple issat  		! allows comparison of submodels with present model (ACE)
+ Interval @95 V 1 1 1 V 1 1 2 V 1 1 3   ! get confidence intervals
+End
+
+Save model1ACE.mxs
+
+! test sex effect on mean;
+Drop P 1 1 1
+End;
+
+Get model1ACE.mxs
+
+! AE model
+Drop Y 1 1 1 
+end
+
+get model1ACE.mxs
+
+! CE model
+Drop X 1 1 1 
+end
+
+! E model
+Drop Y 1 1 1 
+end
+
+
+

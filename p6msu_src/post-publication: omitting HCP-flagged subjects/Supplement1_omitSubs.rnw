@@ -1,0 +1,1086 @@
+\documentclass[letterpaper]{article}
+\usepackage{fullpage}
+\usepackage{pdflscape}
+\usepackage{amsmath}
+\addtolength{\hoffset}{-.5in}
+\addtolength{\textwidth}{1in}
+\addtolength{\voffset}{-.5in}
+\addtolength{\textheight}{1in}
+\begin{document}
+
+\subsection*{Supplement 1 with subjects omitted as suggested by the HCP}
+\noindent source and input files available at \texttt{https://osf.io/p6msu/} \par
+\noindent compiled \today\  \par
+\noindent Supplement 1 for ``Pattern similarity analyses of frontoparietal task coding: Individual variation and genetic influences'' by Joset A. Etzel, Ya'el Courtney, Caitlin E. Carey, Maria Z. Gehred, Arpana Agrawal, and Todd S. Braver. \par
+\noindent Cerebral Cortex, Volume 30, Issue 5, May 2020, \texttt{doi:10.1093/cercor/bhz301} \par
+
+\vspace{0.2 cm} 
+\noindent This is a \texttt{knitr} file (\texttt{https://yihui.name/knitr/}); see the \texttt{.rnw} file with the same name as this \texttt{.pdf} for the R code to generate all figures and results. To compile, change the \texttt{in.path} variable to the location of the \texttt{input} directory downloaded from   \textbf{https://osf.io/p6msu/}. \par
+\vspace{0.6 cm}
+
+\noindent \textbf{NOTE:} This knitr was compiled using a subset of the participants in the published paper: 20 (as of 11 May 2020) people included in the original analysis were later flagged by the HCP as having problematic WM task fMRI data (11 MZ, 3 DZ, 2 SIB, 4 UNR). Omitting pairs in which at least one member was flagged by the HCP leaves 94 MZ pairs, 75 DZ pairs, 97 SIB pairs, and 96 UNR pairs for these analyses. \par
+
+\vspace{0.4 cm}
+
+<<startup, echo=FALSE, message=FALSE, warning=FALSE>>=
+# Results Supplement 1 for ``Pattern similarity analyses of frontoparietal task coding: Individual variation and genetic influences'' by Joset A. Etzel, Ya'el Courtney, Caitlin E. Carey, Maria Z. Gehred,  Arpana Agrawal, and Todd S. Braver
+# Cerebral Cortex, Volume 30, Issue 5, May 2020, https://doi.org/10.1093/cercor/bhz301 and https://www.biorxiv.org/content/10.1101/642397v3
+# https://osf.io/p6msu/
+# code written by Joset A. Etzel, jetzel@wustl.edu. It may be adapted for other research use, provided the source is cited.
+
+library(xtable);   # for table formatting
+library(WRS2);    # for robust SEM
+
+rm(list=ls());
+
+in.path <- "d:/svnFiles/HCP/byFamilyGroup/twinManuscript/forSubmission/input/";  # change this to the path on your computer
+
+options(xtable.floating=FALSE);   # for table formatting
+do.trim <- 0.1;  # how much trimming to do in the mean and SEM
+source(paste0(in.path, "subPairings.R"));  # get.ids function
+
+# get the subject ID codes for the various subject groups
+# UPDATE 11 May 2020: with hcp.flag = TRUE the subjects flagged by the HCP as having problematic WM fMRI data are omitted.
+# https://wiki.humanconnectome.org/display/PublicData/HCP+Data+Release+Updates%3A+Known+Issues+and+Planned+fixes
+MZ.1s <- get.ids("MZ.1s", hcp.flag=TRUE);    MZ.2s <- get.ids("MZ.2s", hcp.flag=TRUE);  
+DZ.1s <- get.ids("DZ.1s", hcp.flag=TRUE);    DZ.2s <- get.ids("DZ.2s", hcp.flag=TRUE);  
+SIB.1s <- get.ids("SIB.1s", hcp.flag=TRUE);  SIB.2s <- get.ids("SIB.2s", hcp.flag=TRUE);  
+UNR.1s <- get.ids("UNR.1s", hcp.flag=TRUE);  UNR.2s <- get.ids("UNR.2s", hcp.flag=TRUE);  
+sub.lbls <- c("MZ", "DZ", "SIB", "UNR");
+
+
+# formatting function to round the output to 'digits' digits and removing the leading zero.
+get.format <- function (inval, digits=3, is.p=FALSE) {   # digits <- 3; inval <- 0.00003;
+  outval <- "";
+  if (!is.na(inval)) { 
+    if (inval < 0) {outval <- gsub("^-0", "-", round(inval, digits)); }
+    if (inval > 0) { outval <- gsub("^0", "", round(inval, digits)); }
+    if (inval == 0 & is.p == FALSE) { outval <- "0"; }
+    if (outval == "") {
+      if (digits == 2) { outval <- "<.01"; }
+      if (digits == 3) { outval <- "<.001"; }
+      if (digits == 4) { outval <- "<.0001"; }
+      if (digits == 5) { outval <- "<.00001"; }
+    }
+    if (outval == "-") {
+      if (digits == 2) { outval <- "<-.01"; }
+      if (digits == 3) { outval <- "<-.001"; }
+      if (digits == 4) { outval <- "<-.0001"; }
+      if (digits == 5) { outval <- "<-.00001"; }
+    }
+  }
+  
+  return(outval);
+}
+
+
+# little function to return a string of Bonferroni-corrected p-value stars; in.val is the p-value, b.num how many comparisons.
+get.stars.b <- function(in.val, b.num=1) {  
+  out.val <- "";
+  if (in.val < (0.05/b.num)) { out.val <- "*"; } 
+  if (in.val < (0.01/b.num)) { out.val <- "**"; }
+  if (in.val < (0.001/b.num)) { out.val <- "***"; }
+  
+  return(out.val);
+}
+
+
+# do and plot a linear regression of xs and ys 
+do.line <- function(xs, ys, lcol='black', ltype='solid') {     # xs <- twin1s; ys <- twin2s;
+  lm.out <- lm(ys ~ xs);
+  fstat <- summary(lm.out)$fstatistic;
+  pval <- pf(fstat[1], fstat[2], fstat[3], lower.tail=FALSE);
+  spval <- cor.test(xs, ys, method="spearman", exact=FALSE);  # estimates if ties
+  txt <- paste0("lm p=", get.format(pval,2), "; spr. p=", get.format(spval$p.value,2), " cor=", get.format(cor(xs,ys, use='complete.obs'),2));
+  abline(lm.out, col=lcol, lty=ltype);
+  
+  return(txt);
+}
+
+get.FTrz <- function(in.val) { return(.5 * log((1+in.val)/(1-in.val))); }  # Fisher's r-to-z transformation.
+get.FTzr <- function(in.val) { return((exp(2*in.val)-1)/(exp(2*in.val)+1)); }  # Fisher's z-to-r transformation
+
+
+@
+
+\section*{S1.1a Behavioral Performance: Face, Place, 0-back, 2-back}
+\noindent These are not expected to vary by subject group (MZ, DZ, SIB, UNR), since the statistics are calculated on each person by themselves. However, the results are calculated for each group separately as well as ALL for completeness, and to ensure that there aren't unexpected group differences. \par
+\vspace{0.2 cm}
+
+<<dprimevals, eval=FALSE, echo=FALSE>>=
+
+# Note: the gap at d' of 4 is correct; 4.312706 is for perfect performance (hit.ct = 16; CR.ct = 64; miss.ct = 0; FA.ct = 0;). 
+# One less CR and one more FA gives d'=3.883494, while one fewer hit and one more miss gives d' = 3.774898; it's not possible to 
+# get intermediate values with the number of trials. I think the distribution looks more complete as the number of errors increases 
+# because there are many more ways to combine hits, CR, misses, and FAs with each additional error. See code in the \texttt{dprimevals} 
+# block of this knitr for calculations.
+
+# accuracy-related statistics. see "C:\maile\journalArticles\statistics\Pallier2002.pdf"
+# hits: correct response to target trial  CR (correct rejection): correct response to non-target trial.
+hit.ct <- length(which(tbl$SessionSelectionList == block.ids[i] & tbl$TargetType == "target" & tbl$Stim.ACC == 1));
+CR.ct <- length(which(tbl$SessionSelectionList == block.ids[i] & tbl$TargetType != "target" & tbl$Stim.ACC == 1));
+# misses: incorrect response to target trial  FA (false alarm): incorrect response to non-target trial
+miss.ct <- length(which(tbl$SessionSelectionList == block.ids[i] & tbl$TargetType == "target" & tbl$Stim.ACC == 0));
+FA.ct <- length(which(tbl$SessionSelectionList == block.ids[i] & tbl$TargetType != "target" & tbl$Stim.ACC == 0));
+if ((hit.ct + CR.ct + miss.ct + FA.ct) != length(which(tbl$SessionSelectionList == block.ids[i]))) { stop("(hit.ct + CR.ct + miss.ct + FA.ct) != length(all.inds)"); }
+
+# proportion correct, all trials in this block, NA trials as incorrect
+out.tbl$run.id[ctr] <- paste0("run", rid);
+out.tbl$block.id[ctr] <- paste0("block", block.ids[i]);
+out.tbl$load.type[ctr] <- block.load;  
+out.tbl$cat.type[ctr] <- block.cat;
+out.tbl$trial.type[ctr] <- "all";
+out.tbl$stat.name[ctr] <- "propcorrect";
+out.tbl$stat.value[ctr] <- (hit.ct + CR.ct)/(hit.ct + CR.ct + miss.ct + FA.ct);   # straight average for accuracy
+ctr <- ctr + 1;
+
+# d', all trials in this block, NA trials as incorrect
+out.tbl$run.id[ctr] <- paste0("run", rid);
+out.tbl$block.id[ctr] <- paste0("block", block.ids[i]);
+out.tbl$load.type[ctr] <- block.load;  
+out.tbl$cat.type[ctr] <- block.cat;
+out.tbl$trial.type[ctr] <- "all";
+out.tbl$stat.name[ctr] <- "dprime";
+hit.rate <- (hit.ct + 0.5)/(hit.ct + miss.ct + 1);  # +0.5 for log-linear d' correction. \maile\journalArticles\statistics\Hautus1995.
+FA.rate <- (FA.ct + 0.5)/(FA.ct + CR.ct + 1);
+out.tbl$stat.value[ctr] <- qnorm(hit.rate) - qnorm(FA.rate);  # calculate the d', with the log-linear rule correction
+ctr <- ctr + 1;
+
+
+# d', all FACE and PLACE trials, NA trials as incorrect
+out.tbl$load.type[ctr] <- "all";  
+out.tbl$cat.type[ctr] <- "Face&Place";
+out.tbl$stat.name[ctr] <- "dprime";
+hit.ct <- length(which((tbl$StimType == "Face" | tbl$StimType == "Place") & tbl$TargetType == "target" & tbl$Stim.ACC == 1));
+CR.ct <- length(which((tbl$StimType == "Face" | tbl$StimType == "Place") & tbl$TargetType != "target" & tbl$Stim.ACC == 1));
+miss.ct <- length(which((tbl$StimType == "Face" | tbl$StimType == "Place") & tbl$TargetType == "target" & tbl$Stim.ACC == 0));
+FA.ct <- length(which((tbl$StimType == "Face" | tbl$StimType == "Place") & tbl$TargetType != "target" & tbl$Stim.ACC == 0));
+out.tbl$stat.value[ctr] <- calc.dprime(hit.ct, miss.ct, FA.ct, CR.ct);  # calculate the d', with the log-linear rule correction
+ctr <- ctr + 1;
+
+
+hit.ct
+[1] 8
+> CR.ct
+[1] 57
+> miss.ct
+[1] 8
+> FA.ct
+[1] 7
+>
+  
+
+# biggest d': 3.47232759  3.49816264  3.65833500  3.77489843  3.88349357  4.31270616
+hit.ct <- 8; CR.ct <- 57; miss.ct <- 8; FA.ct <- 7;  # 1.19838
+hit.ct <- 10; CR.ct <- 60; miss.ct <- 6; FA.ct <- 4;   # 1.780851
+hit.ct <- 16; CR.ct <- 60; miss.ct <- 0; FA.ct <- 4;   # 3.371054   # yes, a number
+hit.ct <- 21; CR.ct <- 50; miss.ct <- 0; FA.ct <- 4;   # 3.393369  # not
+hit.ct <- 20; CR.ct <- 60; miss.ct <- 0; FA.ct <- 0;   # 4.380789  # not
+
+hit.ct <- 18; CR.ct <- 60; miss.ct <- 0; FA.ct <- 2;   #3.692313  # not
+hit.ct <- 16; CR.ct <- 64; miss.ct <- 0; FA.ct <- 0;    # 4.312706  # YES, the max
+
+hit.ct <- 16; CR.ct <- 63; miss.ct <- 1; FA.ct <- 0;   # 3.800553   # not present
+hit.ct <- 15; CR.ct <- 64; miss.ct <- 1; FA.ct <- 0;   # 3.774898   # yes
+hit.ct <- 16; CR.ct <- 63; miss.ct <- 0; FA.ct <- 1;   # 3.883494   # next-smallest
+hit.ct <- 16; CR.ct <- 62; miss.ct <- 0; FA.ct <- 2;   # 3.658335  and smaller
+hit.ct <- 16; CR.ct <- 62; miss.ct <- 1; FA.ct <- 1;   # 3.370422
+hit.ct <- 15; CR.ct <- 63; miss.ct <- 2; FA.ct <- 0;   # 3.502884
+
+
+hit.ct + CR.ct + miss.ct + FA.ct
+hit.rate <- (hit.ct + 0.5)/(hit.ct + miss.ct + 1);  # +0.5 for log-linear d' correction. \maile\journalArticles\statistics\Hautus1995.
+FA.rate <- (FA.ct + 0.5)/(FA.ct + CR.ct + 1);
+qnorm(hit.rate) - qnorm(FA.rate);  # calculate the d', with the log-linear rule correction
+
+
+@
+
+<<code0, eval=TRUE, cache=TRUE, echo=FALSE, dev='pdf', fig.height=2.25, fig.width=7, fig.align='center'>>=
+layout(matrix(1:3, c(1,3)));
+par(mar=c(2.2, 2, 2.2, 1), mgp=c(1.1, 0.2, 0), tcl=-0.3);
+# mar: c(bottom, left, top, right) gives the number of lines of margin to be specified on the four sides of the plot. Default is c(5, 4, 4, 2) + 0.1.
+
+# _WMbehaviorSummary_bothruns.txt files made in create_output_behavioral.R
+cols <- c('blue', 'red', 'seagreen', 'sienna4');
+
+do.plot.1person <- function(do.stat, do.run, do.load, do.cat, do.trial, ttl, make.plot=TRUE) {
+  # do.stat <- "propcorrect"; do.run <- "all"; do.load <- "all"; do.cat <- "Face&Place"; do.trial <- "all"; ttl <- "d"; make.plot <- TRUE;
+  # do.stat <- "dprime"; do.run <- "all"; do.load <- "all"; do.cat <- "all"; do.trial<- NA; ttl<-"dprime, all trials";
+  if (do.stat == "propcorrect") { yLim <- c(0.55,1); yLab <- "Proportion Correct"; rd.d <- 3;  }   # rd.d == how many digits to round to
+  if (do.stat == "dprime") { yLim <- c(-0.2,4.5); yLab <- "d'"; rd.d <- 2; }
+  if (do.stat == "medianRT") { yLim <- c(500,1600); yLab <- "Median RT (msec)"; rd.d <- 1; }
+  
+  if (make.plot == TRUE) {
+    plot(x=0, y=0, xlim=c(0,5), ylim=yLim, col='white', xlab="", ylab=yLab, main="", cex.axis=0.9, cex.lab=1, xaxt='n');
+    axis(side=1, at=1:4, labels=sub.lbls);
+    mtext(ttl, side=3, cex=0.8, line=0.15);
+  }
+  
+  MZ.ids <- c(MZ.1s, MZ.2s);
+  DZ.ids <- c(DZ.1s, DZ.2s);
+  SIB.ids <- c(SIB.1s, SIB.2s);
+  UNR.ids <- c(UNR.1s, UNR.2s);
+  stats.tbl <- data.frame(array(NA, c(length(c(MZ.ids, DZ.ids, SIB.ids, UNR.ids)), 3)));
+  colnames(stats.tbl) <- c("sub.id", "pair.group", "stat"); 
+  ctr <- 1;
+  for (lbl in sub.lbls) {    # lbl <- "MZ";
+    do.ids <- get(paste0(lbl, ".ids"));
+    for (i in 1:length(do.ids)) {    # i <- 1;
+      fname <- paste0(in.path, "output_behavioral/", do.ids[i], "_WMbehaviorSummary_bothruns.txt");
+      if (file.exists(fname)) {
+        tmp <- read.table(fname, stringsAsFactors=FALSE);
+        if (is.na(do.trial)) {
+          ind <- which(tmp$stat.name == do.stat & tmp$load.type == do.load & tmp$cat.type == do.cat & is.na(tmp$trial.type));
+        } else {
+          ind <- which(tmp$stat.name == do.stat & tmp$load.type == do.load & tmp$cat.type == do.cat & tmp$trial.type == do.trial)
+        }
+        if (length(ind) != 1) { 
+          stop("length(ind) != 1"); 
+        } else { 
+          stats.tbl$sub.id[ctr] <- do.ids[i];
+          stats.tbl$pair.group[ctr] <- lbl;
+          stats.tbl$stat[ctr] <- tmp$stat.value[ind]; 
+          ctr <- ctr + 1;
+        }
+      }
+    }
+  }
+  stats.tbl <- stats.tbl[1:(ctr-1),];
+  
+  if (make.plot == TRUE) {
+    for (i in 1:length(sub.lbls)) {   # i <- 2;
+      boxplot(stats.tbl$stat[which(stats.tbl$pair.group==sub.lbls[i])], at=i-0.3, add=TRUE, col=cols[i], bty='n', xaxt='n', yaxt='n',
+              boxwex=0.3);
+      
+      ys <- stats.tbl$stat[which(stats.tbl$pair.group==sub.lbls[i])];
+      xs <- jitter(rep(0, length(ys)), 5);
+      points(x=i+xs, y=ys, col='grey');
+    }
+  }
+  
+# anova(lm(stats.tbl$stat~stats.tbl$pair.group))
+#                       Df Sum Sq   Mean Sq F value Pr(>F)
+# stats.tbl$pair.group   3 0.0222 0.0073964  1.3913 0.2442
+# Residuals            742 3.9447 0.0053163               
+  
+  t.out <- t1way(stats.tbl$stat~stats.tbl$pair.group); # page 323 of stats book
+#  print(t.out)
+# Test statistic: F = 3.3432      $test
+# Degrees of freedom 1: 3         $df1
+# Degrees of freedom 2: 245.77    $df2
+# p-value: 0.01988                $p.value
+# 
+# Explanatory measure of effect size: 0.14   $effsize
+  
+  l.out <- lincon(stats.tbl$stat~stats.tbl$pair.group)
+#  print(l.out)
+#               psihat ci.lower ci.upper p.value
+# DZ vs. MZ    0.01562 -0.00348  0.03472 0.03269
+# DZ vs. SIB   0.02262  0.00224  0.04301 0.00390
+# DZ vs. UNR   0.01773 -0.00261  0.03806 0.02288
+# MZ vs. SIB   0.00701 -0.01340  0.02741 0.36756
+# MZ vs. UNR   0.00211 -0.01825  0.02247 0.78563
+# SIB vs. UNR -0.00490 -0.02647  0.01667 0.55093
+  
+# https://cran.r-project.org/web/packages/WRS2/vignettes/WRS2.pdf, section 4.1
+# The first robust ANOVA alternative presented here is a one-way comparison of trimmed
+
+  # summary statistics: trimmed mean and standard error of the mean
+  sum.vec <- rep("", length(sub.lbls)+1);
+  vals <- stats.tbl$stat;   # ALL
+  sum.vec[1] <- paste0(get.format(mean(vals, trim=do.trim),rd.d,FALSE), " {", get.format(trimse(vals, tr=do.trim),rd.d,FALSE), "}");
+  for (i in 1:length(sub.lbls)) {   # i <- 1;
+    vals <- stats.tbl$stat[which(stats.tbl$pair.group == sub.lbls[i])];   # just one subject group
+    sum.vec[i+1] <- paste0(get.format(mean(vals, trim=do.trim),rd.d,FALSE), " {", get.format(trimse(vals, tr=do.trim),rd.d,FALSE), "}");
+  }
+  
+  return(list(t.out, l.out, sum.vec));
+}
+
+# make the plots and return the input data needed for the statistical testing
+pc.out <- do.plot.1person(do.stat="propcorrect", do.run="all", do.load="all", do.cat="Face&Place", do.trial="all", ttl="Proportion Correct");
+dprime.out <- do.plot.1person(do.stat="dprime", do.run="all", do.load="all", do.cat="Face&Place", do.trial=NA, ttl="d'");
+rt.out <- do.plot.1person(do.stat="medianRT", do.run="all", do.load="all", do.cat="Face&Place", do.trial="all", ttl="Median RT (msec)");
+
+@
+
+\vspace{0.5 cm} 
+\noindent Mean and standard error of the mean of the behavioral measures plotted above. Robust statistics, trimmed at \Sexpr{do.trim}. ALL is all subjects combined and listed in Table 1 of the main text.  \par
+\vspace{0.1 cm}
+<<code0a, cache=TRUE, echo=FALSE, results='asis'>>=
+
+for.xtbl <- data.frame(rbind(pc.out[[3]], dprime.out[[3]], rt.out[[3]]));   # summary statistics vector
+colnames(for.xtbl) <- c("ALL", sub.lbls);
+rownames(for.xtbl) <- c("Proportion Correct", "d prime", "Median RT");
+
+print(xtable(for.xtbl), include.rownames=TRUE);  
+
+
+@
+
+\vspace{0.8 cm} 
+\noindent Below is the code testing for a group effect on each behavioral measure separately, using \texttt{t1way} (a robust anova). There isn't a significant group effect with d' or RT, but there is one for Proportion Correct: DZ larger than the other three groups.  \par
+<<code0b, cache=TRUE, echo=FALSE, size='small'>>=
+
+print("Proportion Correct");  
+print(pc.out[[1]]);
+print(pc.out[[2]]);
+
+print("");
+print("d'");
+print(dprime.out[[1]]);
+
+print("");
+print("Median RT");
+print(rt.out[[1]]);
+
+########################## make table for anovas in next code block
+MZ.ids <- c(MZ.1s, MZ.2s);
+DZ.ids <- c(DZ.1s, DZ.2s);
+SIB.ids <- c(SIB.1s, SIB.2s);
+UNR.ids <- c(UNR.1s, UNR.2s);
+ALL.ids <- c(MZ.ids, DZ.ids, SIB.ids, UNR.ids);
+stats.tbl <- data.frame(array(NA, c(length(ALL.ids)*4, 7)));
+colnames(stats.tbl) <- c("sub.id", "pair.group", "load", "cat", "dprime", "propcorrect", "RT"); 
+ctr <- 1;
+for (lbl in sub.lbls) {    # lbl <- "MZ";
+  do.ids <- get(paste0(lbl, ".ids"));
+  for (i in 1:length(do.ids)) {    # i <- 1;
+    fname <- paste0(in.path, "output_behavioral/", do.ids[i], "_WMbehaviorSummary_bothruns.txt");
+    if (file.exists(fname)) {
+      tmp <- read.table(fname, stringsAsFactors=FALSE);
+      
+      for (do.load in c("0-Back", "2-Back")) {   
+        for (do.cat in c("Face", "Place")) {   # do.load <- "0-Back"; do.cat <- "Place";
+          ind.dprime <- which(tmp$stat.name == "dprime" & tmp$load.type == do.load & tmp$cat.type == do.cat);
+          ind.propc <- which(tmp$stat.name == "propcorrect" & tmp$load.type == do.load & tmp$cat.type == do.cat & tmp$trial.type == "all");
+          ind.rt <- which(tmp$stat.name == "medianRT" & tmp$load.type == do.load & tmp$cat.type == do.cat & tmp$trial.type == "all");
+          
+          if (length(ind.dprime) != 1 | length(ind.propc) != 1 | length(ind.rt) != 1) { 
+            stop("length(ind) != 1"); 
+          } else { 
+            stats.tbl$sub.id[ctr] <- do.ids[i];
+            stats.tbl$pair.group[ctr] <- lbl;
+            stats.tbl$load[ctr] <- do.load;
+            stats.tbl$cat[ctr] <- do.cat;
+            stats.tbl$dprime[ctr] <- tmp$stat.value[ind.dprime];
+            stats.tbl$propcorrect[ctr] <- tmp$stat.value[ind.propc];
+            stats.tbl$RT[ctr] <- tmp$stat.value[ind.rt];
+            ctr <- ctr + 1;
+          }
+        }
+      }
+    }
+  }
+}
+stats.tbl <- stats.tbl[1:(ctr-1),];
+
+stats.tbl$pair.group <- as.factor(stats.tbl$pair.group)
+stats.tbl$load <- as.factor(stats.tbl$load)
+stats.tbl$cat <- as.factor(stats.tbl$cat)
+
+# page 337 of stats book
+
+@
+
+
+\vspace{0.6 cm} 
+\noindent Below are the tests for a group effect on the three behavioral measures together, using \texttt{t3way} (a robust anova). There were no significant interactions with any of the three behavioral measures. There were category and load significant main effects with all three; pair.group only significant for RT.  \par
+<<codec, cache=TRUE, echo=TRUE, size='small'>>=
+
+##### propcorrect: no sig interactions; load, cat, and pair.group sig
+t3way(stats.tbl$propcorrect~stats.tbl$load*stats.tbl$cat*stats.tbl$pair.group); 
+
+##### dprime: no sig interactions; load and cat sig
+t3way(stats.tbl$dprime~stats.tbl$load*stats.tbl$cat*stats.tbl$pair.group); 
+
+##### RT: no sig interactions; load, cat, and pair.group sig
+t3way(stats.tbl$RT~stats.tbl$load*stats.tbl$cat*stats.tbl$pair.group); 
+
+@
+
+\newpage
+\section*{S1.1b Behavioral Performance: Face, Place, 0-back}
+<<code15b, cache=TRUE, echo=FALSE, dev='pdf', fig.height=2.25, fig.width=7, fig.align='center'>>=
+layout(matrix(1:3, c(1,3)));
+par(mar=c(2.2, 2, 2.2, 1), mgp=c(1.1, 0.2, 0), tcl=-0.3);
+# mar: c(bottom, left, top, right) gives the number of lines of margin on the four sides of the plot. Default is c(5, 4, 4, 2) + 0.1.
+
+pc.out <- do.plot.1person(do.stat="propcorrect", do.run="all", do.load="0-Back", do.cat="Face&Place", do.trial="all", ttl="Proportion Correct", make.plot=TRUE);
+dprime.out <- do.plot.1person(do.stat="dprime", do.run="all", do.load="0-Back", do.cat="Face&Place", do.trial=NA, ttl="d'", make.plot=TRUE);
+rt.out <- do.plot.1person(do.stat="medianRT", do.run="all", do.load="0-Back", do.cat="Face&Place", do.trial="all", ttl="Median RT (msec)", make.plot=TRUE);
+
+@
+\vspace{0.5 cm} 
+
+\noindent Mean and standard error of the measures plotted above. Robust statistics, trimmed at \Sexpr{do.trim}. ALL is all subjects combined. \par
+\vspace{0.1 cm}
+<<code0a2, cache=TRUE, echo=FALSE, results='asis'>>=
+
+for.xtbl <- data.frame(rbind(pc.out[[3]], dprime.out[[3]], rt.out[[3]]));   # summary statistics vector
+colnames(for.xtbl) <- c("ALL", sub.lbls);
+rownames(for.xtbl) <- c("Proportion Correct", "d prime", "Median RT");
+
+print(xtable(for.xtbl), include.rownames=TRUE);  
+
+@
+
+\vspace{0.5 cm} 
+\noindent Below is the code testing for a group effect on each behavioral measure separately, using \texttt{t1way} (a robust anova). \par
+<<code0b2, cache=TRUE, echo=FALSE, size='footnotesize'>>=
+
+print("Proportion Correct");  
+print(pc.out[[1]]);
+#print(pc.out[[2]]);
+
+print("");
+print("d'");
+print(dprime.out[[1]]);
+#print(dprime.out[[2]]);
+
+print("");
+print("Median RT");
+print(rt.out[[1]]);
+#print(rt.out[[2]]);
+
+@
+
+
+\newpage
+\section*{S1.1c Behavioral Performance: Face, Place, 2-back}
+<<code15a, cache=TRUE, echo=FALSE, dev='pdf', fig.height=2.25, fig.width=7, fig.align='center'>>=
+layout(matrix(1:3, c(1,3)));
+par(mar=c(2.2, 2, 2.2, 1), mgp=c(1.1, 0.2, 0), tcl=-0.3);
+# mar: c(bottom, left, top, right) gives the number of lines of margin on the four sides of the plot. Default is c(5, 4, 4, 2) + 0.1.
+
+pc.out <- do.plot.1person(do.stat="propcorrect", do.run="all", do.load="2-Back", do.cat="Face&Place", do.trial="all", ttl="Proportion Correct", make.plot=TRUE);
+dprime.out <- do.plot.1person(do.stat="dprime", do.run="all", do.load="2-Back", do.cat="Face&Place", do.trial=NA, ttl="d'", make.plot=TRUE);
+rt.out <- do.plot.1person(do.stat="medianRT", do.run="all", do.load="2-Back", do.cat="Face&Place", do.trial="all", ttl="Median RT (msec)", make.plot=TRUE);
+
+@
+\vspace{0.2 cm} 
+
+\noindent Mean and standard error of the measures plotted above. Robust statistics, trimmed at \Sexpr{do.trim}. ALL is all subjects combined. \par
+\vspace{0.1 cm}
+<<code0a1, cache=TRUE, echo=FALSE, results='asis'>>=
+
+for.xtbl <- data.frame(rbind(pc.out[[3]], dprime.out[[3]], rt.out[[3]]));   # summary statistics vector
+colnames(for.xtbl) <- c("ALL", sub.lbls);
+rownames(for.xtbl) <- c("Proportion Correct", "d prime", "Median RT");
+
+print(xtable(for.xtbl), include.rownames=TRUE);  
+
+
+@
+
+\vspace{0.2 cm} 
+\noindent Below is the code testing for a group effect on each behavioral measure separately, using \texttt{t1way} (a robust anova). \par
+<<code0b1, cache=TRUE, echo=FALSE, size='footnotesize'>>=
+
+print("Proportion Correct");  
+print(pc.out[[1]]);
+#print(pc.out[[2]]);
+
+print("");
+print("d'");
+print(dprime.out[[1]]);
+#print(dprime.out[[2]]);
+
+print("");
+print("Median RT");
+print(rt.out[[1]]);
+print(rt.out[[2]]);
+
+@
+
+
+\newpage
+\section*{S1.1d Behavioral Performance: Face, 0-back, 2-back}
+<<code15c, cache=TRUE, echo=FALSE, dev='pdf', fig.height=2.25, fig.width=7, fig.align='center'>>=
+layout(matrix(1:3, c(1,3)));
+par(mar=c(2.2, 2, 2.2, 1), mgp=c(1.1, 0.2, 0), tcl=-0.3);
+# mar: c(bottom, left, top, right) gives the number of lines of margin on the four sides of the plot. Default is c(5, 4, 4, 2) + 0.1.
+
+pc.out <- do.plot.1person(do.stat="propcorrect", do.run="all", do.load="all", do.cat="Face", do.trial="all", ttl="Proportion Correct", make.plot=TRUE);
+dprime.out <- do.plot.1person(do.stat="dprime", do.run="all", do.load="all", do.cat="Face", do.trial=NA, ttl="d'", make.plot=TRUE);
+rt.out <- do.plot.1person(do.stat="medianRT", do.run="all", do.load="all", do.cat="Face", do.trial="all", ttl="Median RT (msec)", make.plot=TRUE);
+
+@
+\vspace{0.1 cm} 
+
+\noindent Mean and standard error of the measures plotted above. Robust statistics, trimmed at \Sexpr{do.trim}. ALL is all subjects combined. \par
+\vspace{0.1 cm}
+<<code0a3, cache=TRUE, echo=FALSE, results='asis'>>=
+
+for.xtbl <- data.frame(rbind(pc.out[[3]], dprime.out[[3]], rt.out[[3]]));   # summary statistics vector
+colnames(for.xtbl) <- c("ALL", sub.lbls);
+rownames(for.xtbl) <- c("Proportion Correct", "d prime", "Median RT");
+
+print(xtable(for.xtbl), include.rownames=TRUE);  
+
+@
+
+\vspace{0.2 cm} 
+\noindent Below is the code testing for a group effect on each behavioral measure separately, using \texttt{t1way} (a robust anova). \par
+<<code0b3, cache=TRUE, echo=FALSE, size='footnotesize'>>=
+
+print("Proportion Correct");  
+print(pc.out[[1]]);
+print(pc.out[[2]]);
+
+print("");
+print("d'");
+print(dprime.out[[1]]);
+#print(dprime.out[[2]]);
+
+print("");
+print("Median RT");
+print(rt.out[[1]]);
+#print(rt.out[[2]]);
+
+@
+
+
+\newpage
+\section*{S1.1e Behavioral Performance: Place, 0-back, 2-back}
+<<code15d, cache=TRUE, echo=FALSE, dev='pdf', fig.height=2.25, fig.width=7, fig.align='center'>>=
+layout(matrix(1:3, c(1,3)));
+par(mar=c(2.2, 2, 2.2, 1), mgp=c(1.1, 0.2, 0), tcl=-0.3);
+# mar: c(bottom, left, top, right) gives the number of lines of margin on the four sides of the plot. Default is c(5, 4, 4, 2) + 0.1.
+
+pc.out <- do.plot.1person(do.stat="propcorrect", do.run="all", do.load="all", do.cat="Place", do.trial="all", ttl="Proportion Correct", make.plot=TRUE);
+dprime.out <- do.plot.1person(do.stat="dprime", do.run="all", do.load="all", do.cat="Place", do.trial=NA, ttl="d'", make.plot=TRUE);
+rt.out <- do.plot.1person(do.stat="medianRT", do.run="all", do.load="all", do.cat="Place", do.trial="all", ttl="Median RT (msec)", make.plot=TRUE);
+
+@
+\vspace{0.2 cm} 
+
+\noindent Mean and standard error of the measures plotted above. Robust statistics, trimmed at \Sexpr{do.trim}. ALL is all subjects combined. \par
+\vspace{0.1 cm}
+<<code0a4, cache=TRUE, echo=FALSE, results='asis'>>=
+
+for.xtbl <- data.frame(rbind(pc.out[[3]], dprime.out[[3]], rt.out[[3]]));   # summary statistics vector
+colnames(for.xtbl) <- c("ALL", sub.lbls);
+rownames(for.xtbl) <- c("Proportion Correct", "d prime", "Median RT");
+
+print(xtable(for.xtbl), include.rownames=TRUE);  
+
+@
+
+\vspace{0.2 cm} 
+\noindent Below is the code testing for a group effect on each behavioral measure separately, using \texttt{t1way} (a robust anova). \par
+<<code0b4, cache=TRUE, echo=FALSE, size='footnotesize'>>=
+
+print("Proportion Correct");  
+print(pc.out[[1]]);
+#print(pc.out[[2]]);
+
+print("");
+print("d'");
+print(dprime.out[[1]]);
+#print(dprime.out[[2]]);
+
+print("");
+print("Median RT");
+print(rt.out[[1]]);
+print(rt.out[[2]]);
+
+@
+
+
+\newpage
+\section*{S1.2 Correlation between paired participants: behavioral performance}
+\noindent 0-back and 2-back trials; both Face and Place. \par
+\vspace{0.2 cm}
+\noindent Correlation between paired participants on three performance-related measures. Median RT is calculated from correct trials only. Only Face and Place trials are used in these calculations (not Body or Tool), for consistency with the similarity analyses. Point size jittered to reduce overplotting.  \par
+\vspace{0.2 cm}
+<<code3, cache=TRUE, echo=FALSE, dev='pdf', fig.height=2.75, fig.width=7.75, fig.align='center'>>=
+layout(matrix(1:3, c(1,3)));
+par(mar=c(2.2, 2, 2.2, 1), mgp=c(1.1, 0.2, 0), tcl=-0.3);
+# mar: c(bottom, left, top, right) gives the number of lines of margin to be specified on the four sides of the plot. Default is c(5, 4, 4, 2) + 0.1.
+
+
+# this source() needs to be here to avoid conflicting t1way functions
+source(paste0(in.path, "Rallfun-v33.txt"));  # for twohc4cor; downloaded from http://dornsife.usc.edu/labs/rwilcox/software/
+
+# _WMbehaviorSummary_bothruns.txt files made in create_output_behavioral.R
+
+xttl <- "Person 1 of Pair";
+yttl <- "Person 2 of Pair";
+
+do.plot <- function(do.stat, do.run, do.load, do.cat, do.trial, ttl) {
+  # do.stat <- "propcorrect"; do.run <- "all"; do.load <- "all"; do.cat <- "Face&Place"; do.trial <- "all"; ttl <- ""; cx <- 1;
+  # do.stat <- "dprime"; do.run <- "all"; do.load <- "all"; do.cat <- "all"; do.trial<- NA; ttl<-"dprime, all trials";
+  if (do.stat == "propcorrect") { xLim <- c(0.6,1); } 
+  if (do.stat == "dprime") { xLim <- c(-0.2,4.5); }
+  if (do.stat == "medianRT") { xLim <- c(500,1600); }
+  
+  plot(x=0, y=0, xlim=xLim, ylim=xLim, col='white', xlab=xttl, ylab=yttl, main="", cex.axis=0.9, cex.lab=1);
+  lines(x=c(-1,2000), y=c(-1,2000), col='lightgrey', lwd=2);  # x=y diagonal
+  mtext(ttl, side=3, cex=0.8, line=0.15);
+  
+  MZ.x <- rep(NA, length(MZ.1s));
+  MZ.y <- rep(NA, length(MZ.2s));
+  ctr <- 0;
+  for (i in 1:length(MZ.1s)) {    # i <- 18;
+    fname1 <- paste0(in.path, "output_behavioral/", MZ.1s[i], "_WMbehaviorSummary_bothruns.txt");
+    fname2 <- paste0(in.path, "output_behavioral/", MZ.2s[i], "_WMbehaviorSummary_bothruns.txt");
+    if (file.exists(fname1) & file.exists(fname2)) {
+      ctr <- ctr + 1;
+      tmp <- read.table(fname1, stringsAsFactors=FALSE);
+      if (is.na(do.trial)) {
+        ind <- which(tmp$stat.name == do.stat & tmp$load.type == do.load & tmp$cat.type == do.cat & is.na(tmp$trial.type));
+      } else {
+        ind <- which(tmp$stat.name == do.stat & tmp$load.type == do.load & tmp$cat.type == do.cat & tmp$trial.type == do.trial)
+      }
+      if (length(ind) != 1) { stop("length(ind) != 1"); } else { MZ.x[i] <- tmp$stat.value[ind]; }
+      tmp <- read.table(fname2, stringsAsFactors=FALSE);
+      if (is.na(do.trial)) {
+        ind <- which(tmp$stat.name == do.stat & tmp$load.type == do.load & tmp$cat.type == do.cat & is.na(tmp$trial.type));
+      } else {
+        ind <- which(tmp$stat.name == do.stat & tmp$load.type == do.load & tmp$cat.type == do.cat & tmp$trial.type == do.trial)
+      }
+      if (length(ind) != 1) { stop("length(ind) != 1"); } else { MZ.y[i] <- tmp$stat.value[ind]; }
+      #points(x=MZ.x[i], y=MZ.y[i], col=cols[1]);   # actually plot the point for this pair
+    }
+  }
+  cexs <- runif(n=length(MZ.x), min=0.5, max=1.5);
+  points(x=MZ.x, y=MZ.y, col=cols[1], cex=cexs);   # plot the points, with some randomnessin size to reduce overplotting
+  do.line(MZ.x, MZ.y, cols[1]);
+  
+  DZ.x <- rep(NA, length(DZ.1s));
+  DZ.y <- rep(NA, length(DZ.2s));
+  ctr <- 0;
+  for (i in 1:length(DZ.1s)) {    # i <- 19;
+    fname1 <- paste0(in.path, "output_behavioral/", DZ.1s[i], "_WMbehaviorSummary_bothruns.txt");
+    fname2 <- paste0(in.path, "output_behavioral/", DZ.2s[i], "_WMbehaviorSummary_bothruns.txt");
+    if (file.exists(fname1) & file.exists(fname2)) {
+      ctr <- ctr + 1;
+      tmp <- read.table(fname1, stringsAsFactors=FALSE);
+      if (is.na(do.trial)) {
+        ind <- which(tmp$stat.name == do.stat & tmp$load.type == do.load & tmp$cat.type == do.cat & is.na(tmp$trial.type));
+      } else {
+        ind <- which(tmp$stat.name == do.stat & tmp$load.type == do.load & tmp$cat.type == do.cat & tmp$trial.type == do.trial)
+      }
+      if (length(ind) != 1) { stop("length(ind) != 1"); } else { DZ.x[i] <- tmp$stat.value[ind]; }
+      tmp <- read.table(fname2, stringsAsFactors=FALSE);
+      if (is.na(do.trial)) {
+        ind <- which(tmp$stat.name == do.stat & tmp$load.type == do.load & tmp$cat.type == do.cat & is.na(tmp$trial.type));
+      } else {
+        ind <- which(tmp$stat.name == do.stat & tmp$load.type == do.load & tmp$cat.type == do.cat & tmp$trial.type == do.trial)
+      }
+      if (length(ind) != 1) { stop("length(ind) != 1"); } else { DZ.y[i] <- tmp$stat.value[ind]; }
+      #points(x=DZ.x[i], y=DZ.y[i], col=cols[2]);
+    }
+  }
+  cexs <- runif(n=length(DZ.x), min=0.5, max=1.5);
+  points(x=DZ.x, y=DZ.y, col=cols[2], cex=cexs);   # plot the points, with some randomnessin size to reduce overplotting
+  do.line(DZ.x, DZ.y, cols[2]);
+  
+  SIB.x <- rep(NA, length(SIB.1s));
+  SIB.y <- rep(NA, length(SIB.2s));
+  ctr <- 0;
+  for (i in 1:length(SIB.1s)) {    # i <- 2;
+    fname1 <- paste0(in.path, "output_behavioral/", SIB.1s[i], "_WMbehaviorSummary_bothruns.txt");
+    fname2 <- paste0(in.path, "output_behavioral/", SIB.2s[i], "_WMbehaviorSummary_bothruns.txt");
+    if (file.exists(fname1) & file.exists(fname2)) {
+      ctr <- ctr + 1;
+      tmp <- read.table(fname1, stringsAsFactors=FALSE);
+      if (is.na(do.trial)) {
+        ind <- which(tmp$stat.name == do.stat & tmp$load.type == do.load & tmp$cat.type == do.cat & is.na(tmp$trial.type));
+      } else {
+        ind <- which(tmp$stat.name == do.stat & tmp$load.type == do.load & tmp$cat.type == do.cat & tmp$trial.type == do.trial)
+      }
+      if (length(ind) != 1) { stop("length(ind) != 1"); } else { SIB.x[i] <- tmp$stat.value[ind]; }
+      tmp <- read.table(fname2, stringsAsFactors=FALSE);
+      if (is.na(do.trial)) {
+        ind <- which(tmp$stat.name == do.stat & tmp$load.type == do.load & tmp$cat.type == do.cat & is.na(tmp$trial.type));
+      } else {
+        ind <- which(tmp$stat.name == do.stat & tmp$load.type == do.load & tmp$cat.type == do.cat & tmp$trial.type == do.trial)
+      }
+      if (length(ind) != 1) { stop("length(ind) != 1"); } else { SIB.y[i] <- tmp$stat.value[ind]; }
+      #points(x=SIB.x[i], y=SIB.y[i], col=cols[3]);
+    }
+  }
+  cexs <- runif(n=length(SIB.x), min=0.5, max=1.5);
+  points(x=SIB.x, y=SIB.y, col=cols[3], cex=cexs);   # plot the points, with some randomnessin size to reduce overplotting
+  do.line(SIB.x, SIB.y, cols[3]);
+  
+  UNR.x <- rep(NA, length(UNR.1s));
+  UNR.y <- rep(NA, length(UNR.2s));
+  ctr <- 0;
+  for (i in 1:length(UNR.1s)) {    # i <- 2;
+    fname1 <- paste0(in.path, "output_behavioral/", UNR.1s[i], "_WMbehaviorSummary_bothruns.txt");
+    fname2 <- paste0(in.path, "output_behavioral/", UNR.2s[i], "_WMbehaviorSummary_bothruns.txt");
+    if (file.exists(fname1) & file.exists(fname2)) {
+      ctr <- ctr + 1;
+      tmp <- read.table(fname1, stringsAsFactors=FALSE);
+      if (is.na(do.trial)) {
+        ind <- which(tmp$stat.name == do.stat & tmp$load.type == do.load & tmp$cat.type == do.cat & is.na(tmp$trial.type));
+      } else {
+        ind <- which(tmp$stat.name == do.stat & tmp$load.type == do.load & tmp$cat.type == do.cat & tmp$trial.type == do.trial)
+      }
+      if (length(ind) != 1) { stop("length(ind) != 1"); } else { UNR.x[i] <- tmp$stat.value[ind]; }
+      tmp <- read.table(fname2, stringsAsFactors=FALSE);
+      if (is.na(do.trial)) {
+        ind <- which(tmp$stat.name == do.stat & tmp$load.type == do.load & tmp$cat.type == do.cat & is.na(tmp$trial.type));
+      } else {
+        ind <- which(tmp$stat.name == do.stat & tmp$load.type == do.load & tmp$cat.type == do.cat & tmp$trial.type == do.trial)
+      }
+      if (length(ind) != 1) { stop("length(ind) != 1"); } else { UNR.y[i] <- tmp$stat.value[ind]; }
+      #points(x=UNR.x[i], y=UNR.y[i], col=cols[4]);
+    }
+  }
+  cexs <- runif(n=length(UNR.x), min=0.5, max=1.5);
+  points(x=UNR.x, y=UNR.y, col=cols[4], cex=cexs);   # plot the points, with some randomnessin size to reduce overplotting
+  do.line(UNR.x, UNR.y, cols[4]);
+  
+  if (do.stat == "medianRT") { legend(x='top', legend=sub.lbls, col=cols, pch=1, horiz=TRUE, bty='n'); 
+  } else  { legend(x='bottom', legend=sub.lbls, col=cols, pch=1, horiz=TRUE, bty='n'); }
+  box();
+  
+  
+  # test if the R squared for each participant group is different than zero
+
+  # test if the R squared for each participant group is different than zero  # hc4wtest on page 527 of Wilcox
+  MZ <- hc4wtest(MZ.x, MZ.y);          MZ.cor <- cor(MZ.x, MZ.y, use='pairwise.complete.obs');
+  DZ <- hc4wtest(DZ.x, DZ.y);          DZ.cor <- cor(DZ.x, DZ.y, use='pairwise.complete.obs');
+  SIB <- hc4wtest(SIB.x, SIB.y);       SIB.cor <- cor(SIB.x, SIB.y, use='pairwise.complete.obs');
+  UNR <- hc4wtest(UNR.x, UNR.y);       UNR.cor <- cor(UNR.x, UNR.y, use='pairwise.complete.obs');
+  out.row <- c(paste0(get.format(MZ.cor,2), " (", get.format(MZ$p.value,3, TRUE), ")"),
+               paste0(get.format(DZ.cor,2), " (", get.format(DZ$p.value,3, TRUE), ")"),
+               paste0(get.format(SIB.cor,2), " (", get.format(SIB$p.value,3, TRUE), ")"),
+               paste0(get.format(UNR.cor,2), " (", get.format(UNR$p.value,3, TRUE), ")"));
+  # out.row <- c(paste0(get.format(MZ$R.squared,3), " (", get.format(MZ$p.value,3, TRUE), ")"),
+  #              paste0(get.format(DZ$R.squared,3), " (", get.format(DZ$p.value,3, TRUE), ")"),
+  #              paste0(get.format(SIB$R.squared,3), " (", get.format(SIB$p.value,3, TRUE), ")"),
+  #              paste0(get.format(UNR$R.squared,3), " (", get.format(UNR$p.value,3, TRUE), ")"));
+  
+  # test the pairwise difference significance means and p-values for later tables
+  # tests hypothesis of equal Pearson correlations; see Wilcox book, page 514
+  pair.tbl <- array("", c(length(sub.lbls), length(sub.lbls)));
+  rownames(pair.tbl) <- sub.lbls;
+  colnames(pair.tbl) <- sub.lbls;
+  
+  val <- twohc4cor(MZ.x, MZ.y, DZ.x, DZ.y);       
+  pair.tbl["DZ","MZ"] <- paste(get.format(val,3,TRUE), get.stars.b(val,6));
+  val <- twohc4cor(MZ.x, MZ.y, SIB.x, SIB.y)
+  pair.tbl["SIB","MZ"] <- paste(get.format(val,3,TRUE), get.stars.b(val,6));
+  val <- twohc4cor(MZ.x, MZ.y, UNR.x, UNR.y)
+  pair.tbl["UNR","MZ"] <- paste(get.format(val,3,TRUE), get.stars.b(val,6));
+  val <- twohc4cor(DZ.x, DZ.y, SIB.x, SIB.y)
+  pair.tbl["SIB","DZ"] <- paste(get.format(val,3,TRUE), get.stars.b(val,6));
+  val <- twohc4cor(DZ.x, DZ.y, UNR.x, UNR.y)
+  pair.tbl["UNR","DZ"] <- paste(get.format(val,3,TRUE), get.stars.b(val,6));
+  val <-twohc4cor(SIB.x, SIB.y, UNR.x, UNR.y)
+  pair.tbl["UNR","SIB"] <- paste(get.format(val,3,TRUE), get.stars.b(val,6));
+  
+  return(list(out.row, pair.tbl));
+}
+
+# make the plots and return the input data needed for the statistical testing
+R2.pc <- do.plot(do.stat="propcorrect", do.run="all", do.load="all", do.cat="Face&Place", do.trial="all", ttl="Proportion Correct");
+R2.dprime <- do.plot(do.stat="dprime", do.run="all", do.load="all", do.cat="Face&Place", do.trial=NA, ttl="d'");
+R2.rt <- do.plot(do.stat="medianRT", do.run="all", do.load="all", do.cat="Face&Place", do.trial="all", ttl="Median RT (msec)");
+
+@
+
+\vspace{0.5 cm}
+\noindent Pearson correlation between the paired people for each behavioral measure and subject group. p-values for each in parentheses, from \texttt{hc4wtest}, uncorrected for multiple comparisons.   \par
+\vspace{0.1 cm}
+<<code3a, cache=TRUE, echo=FALSE, results='asis'>>=
+
+for.xtbl <- data.frame(rbind(R2.pc[[1]], R2.dprime[[1]], R2.rt[[1]]));
+colnames(for.xtbl) <- sub.lbls;
+rownames(for.xtbl) <- c("Proportion Correct", "d prime", "Median RT");
+print(xtable(for.xtbl), include.rownames=TRUE);
+
+@
+
+\vspace{0.8 cm}
+\noindent p-values for pairwise correlation differences. Asterisks mark differences with p \textless .0083, Bonferroni-corrected threshold for p \textless .05 with 6 comparisons.   \par
+\begin{table}[!htb]
+\begin{minipage}{.5\linewidth}
+\noindent \textbf{Proportion Correct} \par
+<<code3b1, echo=FALSE, results='asis'>>=
+
+print(xtable(R2.pc[[2]]));
+
+@
+\end{minipage}
+\begin{minipage}{.5\linewidth}
+\noindent \textbf{d prime} \par
+<<code3b2, echo=FALSE, results='asis'>>=
+
+print(xtable(R2.dprime[[2]]));
+
+@
+\end{minipage}\end{table}
+\begin{table}[!htb]
+\begin{minipage}{.5\linewidth}
+\noindent \textbf{Median RT} \par
+<<code3b3, echo=FALSE, results='asis'>>=
+
+print(xtable(R2.rt[[2]]));
+
+@
+\end{minipage}\end{table}
+
+
+\newpage
+\section*{S1.3 Correlation between paired participants: highly heritable measures}
+\noindent Correlation between paired participants on four highly heritable characteristics. Note that there is a great deal of overplotting, particularly for Height. Some correlation is present in the unrelated people, likely due to matching the pairs for age and gender. R squared and significance tests for these correlations follow. \par
+\vspace{0.2 cm}
+<<code1, cache=TRUE, echo=FALSE, dev='pdf', fig.height=3.25, fig.width=6, fig.align='center'>>=
+layout(matrix(1:2, c(1,2)));   
+par(mar=c(2.2, 2, 2.2, 1), mgp=c(1.1, 0.2, 0), tcl=-0.3);
+# mar: c(bottom, left, top, right) gives the number of lines of margin to be specified on the four sides of the plot. Default is c(5, 4, 4, 2) + 0.1.
+
+fname <- paste0(in.path, "geneticMeasures.txt");   # made in createGeneticMeasures.R
+if (file.exists(fname)) { gen.tbl <- read.table(fname); } else { stop(paste("missing:", fname)); }
+
+cx <- 0.8;
+cols <- c('blue', 'red', 'seagreen', 'sienna4');
+xttl <- "Person 1 of Pair";
+yttl <- "Person 2 of Pair";
+
+
+
+make.plot <- function(do.stat, ttl) { # do.stat <- "totGreyVol"; ttl <- "";
+  #colnames(gen.tbl) <- c("sub.id", "pmat.cr", "PicVocab", "ReadEng", "totGreyVol", "Height", "Weight", "BMI");
+  if (do.stat == "totGreyVol") {
+    lbl <- "Grey Matter Volume";   # in cubic mm
+    xLim <- c(370000,710000);  # xLim <- c(380000,680000);   yLim <- c(350000,680000);
+  }
+  if (do.stat == "BMI") {
+    lbl <- "BMI";
+    xLim <- c(15,52); #   xLim <- c(15,48);     yLim <- c(10,50);
+  }
+  if (do.stat == "PicVocab") {
+    lbl <- "Picture Vocabulary";
+    xLim <- c(62,170);   #  xLim <- c(62,160);    yLim <- c(55,160);
+  }
+  if (do.stat == "Height") {
+    xLim <- c(55.5,82);    #   xLim <- c(55.5,80);       yLim <- c(55.5,80);
+    lbl <- "Height";    # in inches
+  }
+  
+  plot(x=0, y=0, xlim=xLim, ylim=xLim, col='white', xlab=xttl, ylab=yttl, main="", cex.axis=0.7, cex.lab=0.85);
+  mtext(ttl, side=3, cex=0.9, line=0.15);
+  lines(x=c(-100,10000000), y=c(-100,10000000), col='lightgrey', lwd=2);   # x=y line
+  
+  # dots and regression lines for each subject group
+  MZ.x <- rep(NA, length(MZ.1s));
+  MZ.y <- rep(NA, length(MZ.2s));
+  for (i in 1:length(MZ.1s)) {    # i <- 1;
+    MZ.x[i] <- gen.tbl[which(gen.tbl$sub.id == MZ.1s[i]),do.stat];
+    MZ.y[i] <- gen.tbl[which(gen.tbl$sub.id == MZ.2s[i]),do.stat];
+  }
+  cexs <- runif(n=length(MZ.x), min=0.3, max=1.5);
+  points(x=MZ.x, y=MZ.y, col=cols[1], cex=cexs);   # plot dots for the MZ twins
+  tmp <- do.line(MZ.x, MZ.y, cols[1]);   # and the regression line
+  
+  
+  DZ.x <- rep(NA, length(DZ.1s));
+  DZ.y <- rep(NA, length(DZ.2s));
+  for (i in 1:length(DZ.1s)) {    # i <- 1;
+    DZ.x[i] <- gen.tbl[which(gen.tbl$sub.id == DZ.1s[i]),do.stat];
+    DZ.y[i] <- gen.tbl[which(gen.tbl$sub.id == DZ.2s[i]),do.stat];
+  }
+  cexs <- runif(n=length(DZ.x), min=0.3, max=1.5);
+  points(x=DZ.x, y=DZ.y, col=cols[2], cex=cexs);
+  tmp <- do.line(DZ.x, DZ.y, cols[2]);
+  
+  SIB.x <- rep(NA, length(SIB.1s));
+  SIB.y <- rep(NA, length(SIB.2s));
+  for (i in 1:length(SIB.1s)) {    # i <- 1;
+    SIB.x[i] <- gen.tbl[which(gen.tbl$sub.id == SIB.1s[i]),do.stat];
+    SIB.y[i] <- gen.tbl[which(gen.tbl$sub.id == SIB.2s[i]),do.stat];
+  }
+  cexs <- runif(n=length(SIB.x), min=0.3, max=1.5);
+  points(x=SIB.x, y=SIB.y, col=cols[3], cex=cexs);
+  tmp <- do.line(SIB.x, SIB.y, cols[3]);
+  
+  UNR.x <- rep(NA, length(UNR.1s));
+  UNR.y <- rep(NA, length(UNR.2s));
+  for (i in 1:length(UNR.1s)) {    # i <- 1;
+    UNR.x[i] <- gen.tbl[which(gen.tbl$sub.id == UNR.1s[i]),do.stat];
+    UNR.y[i] <- gen.tbl[which(gen.tbl$sub.id == UNR.2s[i]),do.stat];
+  }
+  cexs <- runif(n=length(UNR.x), min=0.3, max=1.5);
+  points(x=UNR.x, y=UNR.y, col=cols[4], cex=cexs);
+  tmp <- do.line(UNR.x, UNR.y, cols[4]);
+  
+  legend(x='top', legend=c("MZ", "DZ", "SIB", "UNR"), col=cols, pch=1, horiz=TRUE, bty='n', cex=0.7);
+  box();
+  
+  # test if the R squared for each participant group is different than zero  # hc4wtest on page 527 of Wilcox
+  MZ <- hc4wtest(MZ.x, MZ.y);          MZ.cor <- cor(MZ.x, MZ.y, use='pairwise.complete.obs');
+  DZ <- hc4wtest(DZ.x, DZ.y);          DZ.cor <- cor(DZ.x, DZ.y, use='pairwise.complete.obs');
+  SIB <- hc4wtest(SIB.x, SIB.y);       SIB.cor <- cor(SIB.x, SIB.y, use='pairwise.complete.obs');
+  UNR <- hc4wtest(UNR.x, UNR.y);       UNR.cor <- cor(UNR.x, UNR.y, use='pairwise.complete.obs');
+  # out.row <- c(paste0(get.format(MZ$R.squared,3), " (", get.format(MZ$p.value,3, TRUE), ")"),
+  #              paste0(get.format(DZ$R.squared,3), " (", get.format(DZ$p.value,3, TRUE), ")"),
+  #              paste0(get.format(SIB$R.squared,3), " (", get.format(SIB$p.value,3, TRUE), ")"),
+  #              paste0(get.format(UNR$R.squared,3), " (", get.format(UNR$p.value,3, TRUE), ")"));
+  
+  out.row <- c(paste0(get.format(MZ.cor,2), " (", get.format(MZ$p.value,3, TRUE), ")"),
+               paste0(get.format(DZ.cor,2), " (", get.format(DZ$p.value,3, TRUE), ")"),
+               paste0(get.format(SIB.cor,2), " (", get.format(SIB$p.value,3, TRUE), ")"),
+               paste0(get.format(UNR.cor,2), " (", get.format(UNR$p.value,3, TRUE), ")"));
+  
+  
+  # test the pairwise difference significance means and p-values for later tables
+  # tests hypothesis of equal Pearson correlations; see Wilcox book, page 514
+  pair.tbl <- array("", c(length(sub.lbls), length(sub.lbls)));
+  rownames(pair.tbl) <- sub.lbls;
+  colnames(pair.tbl) <- sub.lbls;
+  
+  val <- twohc4cor(MZ.x, MZ.y, DZ.x, DZ.y);       
+  pair.tbl["DZ","MZ"] <- paste(get.format(val,3,TRUE), get.stars.b(val,6));
+  val <- twohc4cor(MZ.x, MZ.y, SIB.x, SIB.y)
+  pair.tbl["SIB","MZ"] <- paste(get.format(val,3,TRUE), get.stars.b(val,6));
+  val <- twohc4cor(MZ.x, MZ.y, UNR.x, UNR.y)
+  pair.tbl["UNR","MZ"] <- paste(get.format(val,3,TRUE), get.stars.b(val,6));
+  val <- twohc4cor(DZ.x, DZ.y, SIB.x, SIB.y)
+  pair.tbl["SIB","DZ"] <- paste(get.format(val,3,TRUE), get.stars.b(val,6));
+  val <- twohc4cor(DZ.x, DZ.y, UNR.x, UNR.y)
+  pair.tbl["UNR","DZ"] <- paste(get.format(val,3,TRUE), get.stars.b(val,6));
+  val <-twohc4cor(SIB.x, SIB.y, UNR.x, UNR.y)
+  pair.tbl["UNR","SIB"] <- paste(get.format(val,3,TRUE), get.stars.b(val,6));
+
+  return(list(out.row, pair.tbl));
+}
+
+
+R2.totgrey <- make.plot("totGreyVol", "Total Cortical Grey Matter Volume (cubic mm)")
+R2.pic <- make.plot("PicVocab", "NIH Picture Vocabulary Test Score")
+R2.height <- make.plot("Height", "Height (inches)")
+R2.bmi <- make.plot("BMI", "Body Mass Index, BMI")
+
+@
+
+\vspace{1.5 cm} 
+\noindent Pearson correlation between the paired people for each highly heritable measure and subject group. p-values for each in parentheses, from \texttt{hc4wtest}, uncorrected for multiple comparisons.   \par
+\vspace{0.1 cm}
+<<code1a, cache=TRUE, echo=FALSE, results='asis'>>=
+
+for.xtbl <- data.frame(rbind(R2.totgrey[[1]], R2.pic[[1]], R2.height[[1]], R2.bmi[[1]]));
+colnames(for.xtbl) <- sub.lbls;
+rownames(for.xtbl) <- c("Total Grey Matter Volume", "NIH Picture Vocabulary", "Height", "BMI");
+print(xtable(for.xtbl), include.rownames=TRUE);
+
+@
+
+\vspace{1.5 cm}
+\noindent p-values for pairwise correlation differences. Asterisks mark differences with p \textless .0083, Bonferroni-corrected threshold for p \textless .05 with 6 comparisons.   \par
+\begin{table}[!htb]
+\begin{minipage}{.5\linewidth}
+\noindent \textbf{Total Cortical Grey Matter Volume} \par
+<<code1b1, echo=FALSE, results='asis'>>=
+
+print(xtable(R2.totgrey[[2]]));
+
+@
+\end{minipage}
+\begin{minipage}{.5\linewidth}
+\noindent \textbf{NIH Picture Vocabulary Test Score} \par
+<<code1b3, echo=FALSE, results='asis'>>=
+
+print(xtable(R2.pic[[2]]));
+
+@
+\end{minipage}\end{table}
+
+\begin{table}[!htb]
+\begin{minipage}{.5\linewidth}
+\noindent \textbf{Height} \par
+<<code1b4, echo=FALSE, results='asis'>>=
+
+print(xtable(R2.height[[2]]));   #, scalebox=0.9
+
+@
+\end{minipage}
+\begin{minipage}{.5\linewidth}
+\noindent \textbf{BMI} \par
+<<code1b2, echo=FALSE, results='asis'>>=
+
+print(xtable(R2.bmi[[2]]));
+
+@
+\end{minipage}\end{table}
+  
+
+
+\newpage
+\section*{S1.4 Correlation between paired participants: behavioral performance}
+\noindent 2-back trials only; both Face and Place. \par
+\vspace{0.2 cm}
+\noindent Correlation between paired participants on three performance-related measures. Significance tests follow. Median RT is calculated from correct trials only. Only Face and Place trials are used in these calculations (not Body or Tool), for consistency with the similarity analyses. Point size jittered to reduce overplotting.  \par
+\vspace{0.2 cm}
+<<code31, cache=TRUE, echo=FALSE, dev='pdf', fig.height=2.75, fig.width=7.75, fig.align='center'>>=
+layout(matrix(1:3, c(1,3)));
+par(mar=c(2.2, 2, 2.2, 1), mgp=c(1.1, 0.2, 0), tcl=-0.3);
+# mar: c(bottom, left, top, right) gives the number of lines of margin to be specified on the four sides of the plot. Default is c(5, 4, 4, 2) + 0.1.
+
+# make the plots and return the input data needed for the statistical testing
+R2.pc <- do.plot(do.stat="propcorrect", do.run="all", do.load="2-Back", do.cat="Face&Place", do.trial="all", ttl="Proportion Correct");
+R2.dprime <- do.plot(do.stat="dprime", do.run="all", do.load="2-Back", do.cat="Face&Place", do.trial=NA, ttl="d'");
+R2.rt <- do.plot(do.stat="medianRT", do.run="all", do.load="2-Back", do.cat="Face&Place", do.trial="all", ttl="Median RT (msec)");
+
+@
+
+\vspace{1.5 cm}
+\noindent Pearson correlation between the paired people for each behavioral measure and subject group. p-values for each in parentheses, from \texttt{hc4wtest}, uncorrected for multiple comparisons.   \par
+\vspace{0.1 cm}
+<<code3a1, cache=TRUE, echo=FALSE, results='asis'>>=
+
+for.xtbl <- data.frame(rbind(R2.pc[[1]], R2.dprime[[1]], R2.rt[[1]]));
+colnames(for.xtbl) <- sub.lbls;
+rownames(for.xtbl) <- c("Proportion Correct", "d prime", "Median RT");
+print(xtable(for.xtbl), include.rownames=TRUE);
+
+@
+
+\vspace{1.5 cm}
+\noindent p-values for pairwise correlation differences. Asterisks mark differences with p \textless .0083, Bonferroni-corrected threshold for p \textless .05 with 6 comparisons.   \par
+\begin{table}[!htb]
+\begin{minipage}{.5\linewidth}
+\noindent \textbf{Proportion Correct} \par
+<<code3b11, echo=FALSE, results='asis'>>=
+
+print(xtable(R2.pc[[2]]));
+
+@
+\end{minipage}
+\begin{minipage}{.5\linewidth}
+\noindent \textbf{d prime} \par
+<<code3b21, echo=FALSE, results='asis'>>=
+
+print(xtable(R2.dprime[[2]]));
+
+@
+\end{minipage}\end{table}
+\begin{table}[!htb]
+\begin{minipage}{.5\linewidth}
+\noindent \textbf{Median RT} \par
+<<code3b31, echo=FALSE, results='asis'>>=
+
+print(xtable(R2.rt[[2]]));
+
+@
+\end{minipage}\end{table}
+
+
+\newpage
+\section*{S1.5 Correlation of behavioral performance in unrelated paired participants}
+\noindent NOTE: This section was not rerun with HCP-flagged participants omitted. \par
+\vspace{0.4 cm}
+
+
+\section*{S1.6 Correlation between paired participants: heritability estimates}
+\noindent NOTE: This section was not rerun with HCP-flagged participants omitted. \par
+
+
+\end{document}

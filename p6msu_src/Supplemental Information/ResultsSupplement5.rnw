@@ -1,0 +1,1345 @@
+\documentclass[letterpaper]{article}
+\usepackage{fullpage}
+\usepackage{pdflscape}
+\addtolength{\hoffset}{-.5in}
+\addtolength{\textwidth}{1in}
+\addtolength{\voffset}{-.5in}
+\addtolength{\textheight}{1in}
+\begin{document}
+
+\subsection*{Results Supplement 5}
+\noindent source and input files available at \texttt{https://osf.io/p6msu/} \par
+\noindent compiled \today\  \par
+\noindent Results Supplement 5 for ``Pattern similarity analyses of frontoparietal task coding: Individual variation and genetic influences'' by Joset A. Etzel, Ya'el Courtney, Caitlin E. Carey, Maria Z. Gehred, Arpana Agrawal, and Todd S. Braver. \par
+\vspace{0.2 cm} 
+\noindent This is a \texttt{knitr} file (\texttt{https://yihui.name/knitr/}); see the \texttt{.rnw} file with the same name as this \texttt{.pdf} for the R code to generate all figures and results. To compile, change the \texttt{in.path} variable to the location of the \texttt{input} directory downloaded from   \textbf{https://osf.io/p6msu/}. \par
+
+<<startup, echo=FALSE, message=FALSE, warning=FALSE>>=
+# Results Supplement 5 for ``Pattern similarity analyses of frontoparietal task coding: Individual variation and genetic influences'' by Joset A. Etzel, Ya'el Courtney, Caitlin E. Carey, Maria Z. Gehred, Arpana Agrawal, and Todd S. Braver
+# https://osf.io/p6msu/
+# code written by Joset A. Etzel, jetzel@wustl.edu. It may be adapted for other research use, provided the source is cited.
+
+library(xtable);   # for table formatting
+library(WRS2);    # for robust SEM
+library(DescTools);   # for YuenTTest
+
+rm(list=ls());
+
+in.path <- "d:/svnFiles/HCP/byFamilyGroup/twinManuscript/forSubmission/input/";  # change this to the path on your computer
+
+options(xtable.floating=FALSE);   # for table formatting
+do.trim <- 0.1;  # how much trimming to do in the mean and SEM
+source(paste0(in.path, "subPairings.R"));  # get.ids function
+source(paste0(in.path, "betaCoeff.R"));  # from http://www.dataanalytics.org.uk/Data%20Analysis/R%20Monographs/BetaCoeff.htm
+source(paste0(in.path, "Rallfun-v33.txt"));  # for non-WRS2 t1way; from http://dornsife.usc.edu/labs/rwilcox/software/
+
+
+# get the subject ID codes for the various subject groups
+sub.lbls <- c("MZ", "DZ", "SIB", "UNRhigh")
+MZ.1s <- get.ids("MZ.1s");    MZ.2s <- get.ids("MZ.2s");  
+DZ.1s <- get.ids("DZ.1s");    DZ.2s <- get.ids("DZ.2s");  
+SIB.1s <- get.ids("SIB.1s");  SIB.2s <- get.ids("SIB.2s");  
+#UNR.1s <- get.ids("UNR.1s");  UNR.2s <- get.ids("UNR.2s");   # UNRhigh first, not UNR
+
+community.ids <- c("FrontoParietal", "Visual");
+
+# formatting function to round the output to 'digits' digits and removing the leading zero.
+get.format <- function (inval, digits=3, is.p=FALSE) {   # digits <- 3; inval <- 0.00003;
+  outval <- "";
+  if (!is.na(inval)) { 
+    if (inval < 0) {outval <- gsub("^-0", "-", round(inval, digits)); }
+    if (inval > 0) { outval <- gsub("^0", "", round(inval, digits)); }
+    if (inval == 0 & is.p == FALSE) { outval <- "0"; }
+    if (outval == "") {
+      if (digits == 2) { outval <- "<.01"; }
+      if (digits == 3) { outval <- "<.001"; }
+      if (digits == 4) { outval <- "<.0001"; }
+      if (digits == 5) { outval <- "<.00001"; }
+    }
+    if (outval == "-") {
+      if (digits == 2) { outval <- "<-.01"; }
+      if (digits == 3) { outval <- "<-.001"; }
+      if (digits == 4) { outval <- "<-.0001"; }
+      if (digits == 5) { outval <- "<-.00001"; }
+    }
+  }
+  
+  return(outval);
+}
+
+
+
+# do and plot a linear regression of xs and ys 
+do.line <- function(xs, ys, lcol='black', ltype='solid') {     # xs <- twin1s; ys <- twin2s;
+  lm.out <- lm(ys ~ xs);
+  fstat <- summary(lm.out)$fstatistic;
+  pval <- pf(fstat[1], fstat[2], fstat[3], lower.tail=FALSE);
+  txt <- paste0("correlation=", get.format(cor(xs,ys, use='complete.obs'),2), " lm p=", get.format(pval,2));
+  abline(lm.out, col=lcol, lty=ltype);
+  
+  return(txt);
+}
+
+get.FTrz <- function(in.val) { return(.5 * log((1+in.val)/(1-in.val))); }  # Fisher's r-to-z transformation.
+get.FTzr <- function(in.val) { return((exp(2*in.val)-1)/(exp(2*in.val)+1)); }  # Fisher's z-to-r transformation
+
+
+# little function to return a string of Bonferroni-corrected p-value stars; in.val is the p-value, b.num how many comparisons.
+get.stars.b <- function(in.val, b.num=1) {  
+  out.val <- "";
+  if (in.val < (0.05/b.num)) { out.val <- "*"; } 
+  if (in.val < (0.01/b.num)) { out.val <- "**"; }
+  if (in.val < (0.001/b.num)) { out.val <- "***"; }
+  
+  return(out.val);
+}
+
+@
+
+\vspace{0.4 cm} 
+\section*{S5.1 Pairing unrelated participants by d': UNRhigh}
+\noindent The paired unrelated (UNR) people were not similar to each other in behavioral performance (S1.2, Table 2), and also had lower pairwise quantification scores, particularly for Load and in FrontoParietal. It might be asked whether these two things are linked: do people with greater behavioral similarity (i.e., similar d') tend to have higher pairwise quantification scores, regardless of relatedness? The lack of significant difference in d' correlation between the groups (other than UNR, S1.2) argues against d' similarity being the critical factor, but a stronger test is to create a set of unrelated people paired by d': do unrelated people with similar d' also have similar pairwise quantification scores? \par
+\vspace{0.2 cm}
+\noindent To preview the analyses in sections S5.1a to S5.1c, pairing unrelated people with similar d' did not make their pairwise quantification scores appreciably more similar: UNRhigh is much more like UNR than MZ.  \par
+\vspace{0.5 cm}
+\noindent The UNR pairs used in the primary analyses were chosen so that each had the same gender, be within 3 years of age, not have any parents in common, and not be in any other subject groups. In S1.5 the restriction against being in another subject group was removed, allowing 514 unrelated pairs to be made. The figure showing the lack of correlation between paired unrelated people in this larger group is shown below, repeated from S1.5.  \par
+\vspace{0.2 cm}
+\noindent To make a group of unrelated people with similar d', 100 pairs (to match size of UNR) were chosen at random from these 514 pairs such that the paired people's d' were within 1 of each other. This new group, called \textbf{UNRhigh} (for highly similar) is shown in the right plot. As designed, these participants have a higher d' correlation than any of the actual subject groups (MZ d' correlation is 0.43; see S1.2). \par
+\vspace{0.2 cm}
+<<code1, cache=TRUE, echo=FALSE, dev='pdf', fig.height=2.75, fig.width=7.75, fig.align='center'>>=
+layout(matrix(1:3, c(1,3)));
+par(mar=c(2.2, 2, 2.2, 1), mgp=c(1.1, 0.2, 0), tcl=-0.3);
+# mar: c(bottom, left, top, right) gives the number of lines of margin to be specified on the four sides of the plot. Default is c(5, 4, 4, 2) + 0.1.
+
+make.plot <- function(unr.tbl, ttl) {
+#  do.stat <- "dprime"; do.run <- "all"; do.load <- "all"; do.cat <- "Face&Place"; do.trial <- NA; # ttl <- "";
+ # xLim <- c(-0.2,4.5); 
+  plot(x=0, y=0, xlim=c(-0.2,4.5), ylim=c(-0.2,4.5), col='white', xlab="Person 1 of Pair", ylab="Person 2 of Pair", main="", cex.axis=0.9, cex.lab=1);
+  lines(x=c(-1,2000), y=c(-1,2000), col='lightgrey', lwd=2);  # x=y diagonal
+  mtext(ttl, side=3, cex=0.8, line=0.15);
+  
+  UNR.x <- rep(NA, nrow(unr.tbl));
+  UNR.y <- rep(NA, nrow(unr.tbl));
+  ctr <- 0;
+  for (i in 1:nrow(unr.tbl)) {    # i <- 2;
+    fname1 <- paste0(in.path, "output_behavioral/", unr.tbl[i,1], "_WMbehaviorSummary_bothruns.txt");
+    fname2 <- paste0(in.path, "output_behavioral/", unr.tbl[i,2], "_WMbehaviorSummary_bothruns.txt");
+    if (file.exists(fname1) & file.exists(fname2)) {
+      ctr <- ctr + 1;
+      tmp <- read.table(fname1, stringsAsFactors=FALSE);
+      ind <- which(tmp$stat.name == "dprime" & tmp$load.type == "all" & tmp$cat.type == "Face&Place" & is.na(tmp$trial.type));
+      
+      if (length(ind) != 1) { stop("length(ind) != 1"); } else { UNR.x[i] <- tmp$stat.value[ind]; }
+      tmp <- read.table(fname2, stringsAsFactors=FALSE);
+      ind <- which(tmp$stat.name == "dprime" & tmp$load.type == "all" & tmp$cat.type == "Face&Place" & is.na(tmp$trial.type));
+      if (length(ind) != 1) { stop("length(ind) != 1"); } else { UNR.y[i] <- tmp$stat.value[ind]; }
+    }
+  }
+  
+  # to make UNRhigh, this code was run, after running the previous code with UNR2ids.txt (all 514 pairs)
+  # now have all the pairs in UNR.x & UNR.y. Want to drop some to get more correlated.
+  # first drop all with NA (these weren't included anyway)
+  # drop.inds <- union(which(is.na(UNR.x)), which(is.na(UNR.y)));
+  # UNR.x <- UNR.x[-drop.inds];
+  # UNR.y <- UNR.y[-drop.inds];
+  # unr.tbl2 <- unr.tbl[-drop.inds,]
+  # 
+  # drop.inds <- which(abs(UNR.x - UNR.y) > 1)
+  # UNR.x <- UNR.x[-drop.inds];
+  # UNR.y <- UNR.y[-drop.inds];
+  # unr.tbl2 <- unr.tbl2[-drop.inds,];
+  # 
+  # # want 100 pairs to match the number of "real" UNR; pick at random:
+  # keep.inds <- sample(1:length(UNR.x))[1:100]
+  # UNR.x <- UNR.x[keep.inds];
+  # UNR.y <- UNR.y[keep.inds];
+  # unr.tbl2 <- unr.tbl2[keep.inds,];   # these are the "UNR-high" ids; 100 pairs.
+  # 
+  # write.table(unr.tbl2, "d:/svnFiles/HCP/byFamilyGroup/twinManuscript/submission2/knitr/UNRhigh/UNRhighIDs.txt");
+  
+  cexs <- runif(n=length(UNR.x), min=0.5, max=1.5);
+  points(x=UNR.x, y=UNR.y, col='tan4', cex=cexs);   # plot the points, with some randomnessin size to reduce overplotting
+  tmp <- do.line(UNR.x, UNR.y, 'tan4');
+  text(x=2, y=-0.2, labels=tmp)
+  box();
+}
+
+unr.tbl <- read.table(paste0(in.path, "output_behavioral/UNR2ids.txt"));   # 514 pairs
+make.plot(unr.tbl, "d', 514 unrelated pairs from S1.5");
+
+unr.tbl <- read.table(paste0(in.path, "output_behavioral/UNRhighIDs.txt"));  # made in this code block
+make.plot(unr.tbl, "d', UNRhigh (100 pairs picked on d')")
+UNR.1s <- unr.tbl[,1];  UNR.2s <- unr.tbl[,2];   # UNRhigh
+
+
+@
+
+\newpage
+\section*{S5.1a UNRhigh Pairwise quant. scores: Load and Category comparisons}
+\noindent The pairwise quantification scores were calculated for UNRhigh in the same manner as the subject groups (Supplemental 4), using the standard Load quantification (with both 0-back and 2-back trials). The graphs and statistics in this section are the same as those in S4.1, but with UNRhigh instead of UNR. \par
+\vspace{0.2 cm}
+\noindent The distribution of quantification scores (boxplots) is fairly similar for UNR and UNRhigh (and the other subject groups): both paired t-tests (printed on the boxplot) are highly significant, with Load quantification greater than Category in FrontoParietal, and Category much greater than Load in Visual. The t-tests for the mean of each set of quantification scores != 0 (tables) are slightly more significant for FrontoParietal Load with UNRhigh (t=6.64) than UNR (t=5.45), but still less than MZ (8.27). Given that the UNRhigh pairs are much more similar on d' than MZ, this suggests that the pairwise quantification is capturing something more than behavioral similarity.  \par
+\vspace{0.2 cm}
+<<code1a, echo=FALSE, dev='pdf', fig.height=2.5, fig.width=7.25, fig.align="center">>=
+layout(matrix(1:4, c(1,4)));
+par(mar=c(2.3, 2.2, 2, 0.75), mgp=c(1.1, 0.2, 0), tcl=-0.3);
+# mar: c(bottom, left, top, right) gives the number of lines of margin. Default is c(5, 4, 4, 2) + 0.1.
+
+bp.cols <- c("darkkhaki", "cornsilk");   # bp.cols <- c("lightgrey", "lightgrey");
+
+quant.RSA.plots <- function(pair.type, which.load) {  # pair.type <- "UNRhigh"; which.load <- "_0and2back";
+  if (pair.type == "UNRhigh") {
+    sub.1s <- unr.tbl[,1];
+    sub.2s <- unr.tbl[,2];
+  } else {
+    sub.1s <- get.ids(paste0(pair.type, ".1s"))
+    sub.2s <- get.ids(paste0(pair.type, ".2s")); 
+  }
+  sub.conc <- paste0(sub.1s, ".", sub.2s);  # concatenated version for row labels
+  
+  fname.quant <- paste0(in.path, "pairwiseCorrelations/", pair.type, "_pairPairwiseDistanceRSAquant", which.load, "_z.txt");
+  if (!file.exists(fname.quant)) {
+    if (which.load == "_0and2back") {
+      same.load <- c("X0bkFace.0bkFace", "X2bkFace.2bkFace", "X0bkPlace.0bkPlace", "X2bkPlace.2bkPlace", 
+                     "X0bkFace.0bkPlace", "X0bkPlace.0bkFace", "X2bkFace.2bkPlace", "X2bkPlace.2bkFace");
+    }
+    if (which.load == "_just2back") { 
+      same.load <- c("X2bkFace.2bkFace", "X2bkPlace.2bkPlace", "X2bkFace.2bkPlace", "X2bkPlace.2bkFace");
+    }
+    if (which.load == "_just0back") { 
+      same.load <- c("X0bkFace.0bkFace", "X0bkPlace.0bkPlace", "X0bkFace.0bkPlace", "X0bkPlace.0bkFace");
+    }
+    diff.load <- c("X0bkFace.2bkFace", "X0bkFace.2bkPlace", "X0bkPlace.2bkFace", "X0bkPlace.2bkPlace",
+                   "X2bkFace.0bkFace", "X2bkFace.0bkPlace", "X2bkPlace.0bkFace", "X2bkPlace.0bkPlace");
+
+    same.pic <- c("X0bkFace.0bkFace", "X0bkFace.2bkFace", "X0bkPlace.0bkPlace", "X0bkPlace.2bkPlace", 
+                  "X2bkFace.0bkFace", "X2bkFace.2bkFace", "X2bkPlace.0bkPlace", "X2bkPlace.2bkPlace");
+    diff.pic <- c("X0bkFace.0bkPlace", "X0bkFace.2bkPlace", "X0bkPlace.0bkFace", "X0bkPlace.2bkFace", 
+                  "X2bkFace.0bkPlace", "X2bkFace.2bkPlace", "X2bkPlace.0bkFace", "X2bkPlace.2bkFace");
+    
+    fp.tbl <- read.table(paste0(in.path, "pairwiseCorrelations/", pair.type, "_FrontoParietal_pairPairwiseDistanceRSA.txt"));  # made above
+    fp.tbl <- get.FTrz(fp.tbl); # ready for averaging
+    v.tbl <- read.table(paste0(in.path, "pairwiseCorrelations/", pair.type, "_Visual_pairPairwiseDistanceRSA.txt"));  # rows are people, columns are pair.ids
+    v.tbl <- get.FTrz(v.tbl);    
+    
+    quant.tbl <- data.frame(array(NA, c(length(sub.conc)*2*2, 4)));
+    colnames(quant.tbl) <- c("sub.conc", "comm.id", "type.id", "diff");
+    ctr <- 1;
+    for (sid in 1:length(sub.conc)) {   # sid <- 1;
+      quant.tbl$sub.conc[ctr] <- sub.conc[sid];
+      quant.tbl$comm.id[ctr] <- "FrontoParietal";
+      quant.tbl$type.id[ctr] <- "load";
+      quant.tbl$diff[ctr] <- mean(as.numeric(fp.tbl[sub.conc[sid],same.load])) - mean(as.numeric(fp.tbl[sub.conc[sid],diff.load])); # stay as z
+      ctr <- ctr + 1;
+      
+      quant.tbl$sub.conc[ctr] <- sub.conc[sid];
+      quant.tbl$comm.id[ctr] <- "FrontoParietal";
+      quant.tbl$type.id[ctr] <- "picture";
+      quant.tbl$diff[ctr] <- mean(as.numeric(fp.tbl[sub.conc[sid],same.pic])) - mean(as.numeric(fp.tbl[sub.conc[sid],diff.pic]));  
+      ctr <- ctr + 1;
+      
+      quant.tbl$sub.conc[ctr] <- sub.conc[sid];
+      quant.tbl$comm.id[ctr] <- "Visual";
+      quant.tbl$type.id[ctr] <- "load";
+      quant.tbl$diff[ctr] <- mean(as.numeric(v.tbl[sub.conc[sid],same.load])) - mean(as.numeric(v.tbl[sub.conc[sid],diff.load])); 
+      ctr <- ctr + 1;
+      
+      quant.tbl$sub.conc[ctr] <- sub.conc[sid];
+      quant.tbl$comm.id[ctr] <- "Visual";
+      quant.tbl$type.id[ctr] <- "picture";
+      quant.tbl$diff[ctr] <- mean(as.numeric(v.tbl[sub.conc[sid],same.pic])) - mean(as.numeric(v.tbl[sub.conc[sid],diff.pic]));  
+      ctr <- ctr + 1;
+    }
+    write.table(quant.tbl, fname.quant);
+  } 
+  quant.tbl <- read.table(fname.quant, stringsAsFactors=FALSE);
+  
+  
+  # make the plot
+  if (which.load == "_0and2back") { y.lim <- c(-0.08,0.2); ttl <- "."; }    # ttl <- "";
+  if (which.load == "_just2back") { y.lim <- c(-0.21,0.25); ttl <- ". (2-back only Load)"; }
+  if (which.load == "_just0back") { y.lim <- c(-0.22,0.25); ttl <- ". (0-back only Load)"; }
+  
+  plot(x=-1, y=-1, xlim=c(0.5,4.5), ylim=y.lim, xlab="", ylab="", main="", xaxt='n', xaxs='i', cex.axis=0.9);
+  mtext(side=3, text=paste0(pair.type, ttl), line=0.1, cex=0.8);     # top title
+  mtext(side=1, text="FrontoParietal    Visual      ", line=1.4, cex=0.73); 
+  mtext(side=2, text="Quantification Score", line=1.2, cex=0.8); 
+  axis(side=1, at=c(1,3), labels=rep("Load", 2), cex.axis=0.9);
+  axis(side=1, at=c(2,4), labels=rep("Category", 2), cex.axis=0.9);
+  lines(x=c(-1,5), y=rep(0,2), col='darkgrey');
+  lines(x=rep(2.5,2), y=c(-1,1));
+  
+  fp.load <- quant.tbl$diff[which(quant.tbl$comm.id == "FrontoParietal" & quant.tbl$type.id == "load")];
+  fp.st <- quant.tbl$diff[which(quant.tbl$comm.id == "FrontoParietal" & quant.tbl$type.id == "picture")];
+  v.load <- quant.tbl$diff[which(quant.tbl$comm.id == "Visual" & quant.tbl$type.id == "load")];
+  v.st <- quant.tbl$diff[which(quant.tbl$comm.id == "Visual" & quant.tbl$type.id == "picture")];
+  
+  boxplot(fp.load, at=1, add=TRUE, bty='n', xaxt='n', yaxt='n', col=bp.cols[1], boxwex=0.7, cex=0.8);
+  boxplot(fp.st, at=2, add=TRUE, bty='n', xaxt='n', yaxt='n', col=bp.cols[2], boxwex=0.7, cex=0.8);
+  if (pair.type != "all") { text(x=1.5, y=0.78, labels="FrontoParietal", cex=0.9); }
+  stbl <- quant.tbl[which(quant.tbl$comm.id == "FrontoParietal"),]
+  tout <- YuenTTest(diff~type.id, data=stbl, paired=TRUE, alternative="two.sided", trim=do.trim);
+  
+  tmp <- get.format(tout$p.value, digits=3, is.p=TRUE);   # cludgy fix for needing p= in a few cases
+  if (tmp == ".001") { tmp <- "=.001"; }
+  text(x=1.5, y=y.lim[1], labels=paste0("t=", round(tout$statistic,1), " p", tmp), cex=0.9); 
+  
+  boxplot(v.load, at=3, add=TRUE, bty='n', xaxt='n', yaxt='n', col=bp.cols[1], boxwex=0.7, cex=0.8);
+  boxplot(v.st, at=4, add=TRUE, bty='n', xaxt='n', yaxt='n', col=bp.cols[2], boxwex=0.7, cex=0.8);
+  if (pair.type != "all") { text(x=3.5, y=0.78, labels="Visual", cex=0.9); }
+  stbl <- quant.tbl[which(quant.tbl$comm.id == "Visual"),]
+  tout <- YuenTTest(diff~type.id, data=stbl, paired=TRUE, alternative="two.sided", trim=do.trim);
+  text(x=3.5, y=y.lim[1], labels=paste0("t=", round(tout$statistic,1), " p", get.format(tout$p.value, digits=3, is.p=TRUE)), cex=0.9); 
+}
+
+
+sub.lbls <- c("MZ", "DZ", "SIB", "UNRhigh");
+
+for (i in sub.lbls) { quant.RSA.plots(i, "_0and2back"); }
+
+@
+
+\vspace{0.9 cm}
+\noindent Robust t-tests for the mean of each set of quantification scores != 0. p-values uncorrected for multiple comparisons. \par
+\vspace{0.2 cm}
+\begin{table}[!htb]
+\begin{minipage}{.5\linewidth}
+\noindent \textbf{Category} \par
+<<code1b, cache=TRUE, echo=FALSE, results='asis'>>=
+
+do.type <- "picture";
+out.tbl <- data.frame(array(NA, c(length(sub.lbls),length(community.ids))));
+colnames(out.tbl) <- community.ids;
+row.names(out.tbl) <- sub.lbls;
+
+for (sub.lbl in sub.lbls) {   # sub.lbl <- "MZ";
+  quant.tbl <- read.table(paste0(in.path, "pairwiseCorrelations/", sub.lbl, "_pairPairwiseDistanceRSAquant_0and2back_z.txt"));
+  for (comm.lbl in community.ids) {   # comm.lbl <- "Visual";
+    stbl <- quant.tbl[which(quant.tbl$comm.id == comm.lbl & quant.tbl$type.id == do.type),]
+    y.out <- YuenTTest(x=stbl$diff, mu=0, alternative="two.sided", trim=do.trim);
+    out.tbl[sub.lbl,comm.lbl] <- paste0(get.format(y.out$statistic,2), " (", get.format(y.out$p.value, is.p=TRUE), ")");  
+  }
+}
+print(xtable(out.tbl), include.rownames=TRUE);
+
+
+@
+\end{minipage}  
+\begin{minipage}{.5\linewidth}
+\noindent \textbf{Load} \par
+<<code1c, cache=TRUE, echo=FALSE, results='asis'>>=
+
+do.type <- "load";
+out.tbl <- data.frame(array(NA, c(length(sub.lbls),length(community.ids))));
+colnames(out.tbl) <- community.ids;
+row.names(out.tbl) <- sub.lbls;
+
+for (sub.lbl in sub.lbls) {   # sub.lbl <- "MZ";
+  quant.tbl <- read.table(paste0(in.path, "pairwiseCorrelations/", sub.lbl, "_pairPairwiseDistanceRSAquant_0and2back_z.txt"));
+  for (comm.lbl in community.ids) {   # comm.lbl <- "Visual";
+    stbl <- quant.tbl[which(quant.tbl$comm.id == comm.lbl & quant.tbl$type.id == do.type),]
+    y.out <- YuenTTest(x=stbl$diff, mu=0, alternative="two.sided", trim=do.trim);
+    out.tbl[sub.lbl,comm.lbl] <- paste0(get.format(y.out$statistic,2), " (", get.format(y.out$p.value, is.p=TRUE), ")");  
+  }
+}
+print(xtable(out.tbl), include.rownames=TRUE);
+
+
+@
+\end{minipage} \end{table}
+
+
+\newpage
+\section*{S5.1b UNRhigh Pairwise quantification scores: group comparisons}
+\noindent This section is the same as S4.1b, but with UNRhigh instead of UNR. \par
+\vspace{0.2 cm}
+\noindent The robust ANOVAs here reinforce the impression from the t-tests: MZ has a significantly higher Load quantification in FrontoParietal than UNRhigh.  \par
+\vspace{0.2 cm}
+<<code1d, cache=TRUE, echo=FALSE, dev='pdf', fig.height=2.1, fig.width=7.5, fig.align="center">>=
+layout(matrix(1:4, c(1,4)));
+par(mar=c(2.25, 2.25, 1.75, 0.75), mgp=c(1.1, 0.2, 0), tcl=-0.3);
+# mar: c(bottom, left, top, right) gives the number of lines of margin. Default is c(5, 4, 4, 2) + 0.1.
+
+quant.RSA.plots4 <- function(which.comm, which.quant, which.load) {  # which.comm <- "FrontoParietal"; which.quant <- "load";
+  if (which.quant == "load") { ttl.lbl <- paste(which.load, "Load"); box.clr <- "cornsilk"; }
+  if (which.quant == "picture") { ttl.lbl <- "Category"; box.clr <- "darkkhaki"; }   # "lightblue"
+  plot(x=-1, y=-1, xlim=c(0.5,4.5), ylim=c(-0.19,0.25), xlab="", ylab="Quantification Score", main="", xaxt='n', cex.lab=1, cex.axis=0.9);
+  mtext(side=3, text=paste0(which.comm, ", ", ttl.lbl), line=0.15, cex=0.7); 
+  grid(nx=NA, ny=NULL)
+  axis(side=1, at=1:4, labels=sub.lbls, cex.axis=0.7); 
+  lines(x=c(-1,5), y=rep(0,2), col='darkgrey');
+  
+  for (slid in 1:length(sub.lbls)) {   # slid <- 1;
+    fname <- paste0(in.path, "pairwiseCorrelations/", sub.lbls[slid], "_pairPairwiseDistanceRSAquant_", which.load, "_z.txt")
+    quant.tbl <- read.table(fname, stringsAsFactors=FALSE);
+    vals <- quant.tbl$diff[which(quant.tbl$comm.id == which.comm & quant.tbl$type.id == which.quant)];
+    
+    temp.tbl <- data.frame(sub.lbls[slid], vals);
+    colnames(temp.tbl)[1] <- "pair.type";
+    if (slid == 1) { plot.tbl <- temp.tbl; } else { plot.tbl <- rbind(plot.tbl, temp.tbl); }
+  }
+  boxplot(plot.tbl$vals~plot.tbl$pair.type, varwidth=TRUE, add=TRUE, bty='n', xaxt='n', yaxt='n', col=box.clr)
+}
+
+load.lbl <- "0and2back";
+quant.RSA.plots4("FrontoParietal", "picture", load.lbl);
+quant.RSA.plots4("Visual", "picture", load.lbl);
+
+#for (load.lbl in c("0and2back", "just2back", "just0back")) {   # 
+  load.lbl <- "0and2back";
+  quant.RSA.plots4("FrontoParietal", "load", load.lbl);
+  quant.RSA.plots4("Visual", "load", load.lbl);
+#}
+
+@
+
+\vspace{0.2 cm}
+\noindent Load \par
+<<code1e, cache=TRUE, echo=FALSE>>=
+
+type.lbl <- "load";
+for (load.lbl in c("0and2back")) {   #, "just2back", "just0back"
+  mz.tbl <- read.table(paste0(in.path, "pairwiseCorrelations/MZ_pairPairwiseDistanceRSAquant_", load.lbl, "_z.txt"), stringsAsFactors=FALSE);
+  dz.tbl <- read.table(paste0(in.path, "pairwiseCorrelations/DZ_pairPairwiseDistanceRSAquant_", load.lbl, "_z.txt"), stringsAsFactors=FALSE);
+  sib.tbl <- read.table(paste0(in.path, "pairwiseCorrelations/SIB_pairPairwiseDistanceRSAquant_", load.lbl, "_z.txt"), stringsAsFactors=FALSE);
+  unr.tbl <- read.table(paste0(in.path, "pairwiseCorrelations/UNRhigh_pairPairwiseDistanceRSAquant_", load.lbl, "_z.txt"), stringsAsFactors=FALSE);
+  
+  for (comm.lbl in community.ids) {  # comm.lbl <- community.ids[1]; 
+    mz.col <- mz.tbl$diff[which(mz.tbl$comm.id == comm.lbl & mz.tbl$type.id == type.lbl)];
+    dz.col <- dz.tbl$diff[which(dz.tbl$comm.id == comm.lbl & dz.tbl$type.id == type.lbl)];
+    sib.col <- sib.tbl$diff[which(sib.tbl$comm.id == comm.lbl & sib.tbl$type.id == type.lbl)];
+    unr.col <- unr.tbl$diff[which(unr.tbl$comm.id == comm.lbl & unr.tbl$type.id == type.lbl)];
+    x <- list(MZ=mz.col, DZ=dz.col, SIB=sib.col, UNR=unr.col);
+    
+    print(paste(comm.lbl, load.lbl));
+    t.out <- t1way(x, tr=do.trim);       # page 323 of stats book
+    print(paste0("F=", t.out$TEST, " p=", t.out$p.value));
+    if (t.out$p.value < 0.05) { print(lincon(x, tr=do.trim)$psihat); }
+    print("", quote=FALSE);
+    print("################################################################################", quote=FALSE);
+  }
+}
+
+@
+
+\vspace{0.2 cm}
+\noindent Category \par
+<<code1f, cache=TRUE, echo=FALSE>>=
+
+mz.tbl <- read.table(paste0(in.path, "pairwiseCorrelations/MZ_pairPairwiseDistanceRSAquant_0and2back_z.txt"), stringsAsFactors=FALSE);
+dz.tbl <- read.table(paste0(in.path, "pairwiseCorrelations/DZ_pairPairwiseDistanceRSAquant_0and2back_z.txt"), stringsAsFactors=FALSE);
+sib.tbl <- read.table(paste0(in.path, "pairwiseCorrelations/SIB_pairPairwiseDistanceRSAquant_0and2back_z.txt"), stringsAsFactors=FALSE);
+unr.tbl <- read.table(paste0(in.path, "pairwiseCorrelations/UNRhigh_pairPairwiseDistanceRSAquant_0and2back_z.txt"), stringsAsFactors=FALSE);
+
+type.lbl <- "picture";
+for (comm.lbl in community.ids) {
+  mz.col <- mz.tbl$diff[which(mz.tbl$comm.id == comm.lbl & mz.tbl$type.id == type.lbl)];
+  dz.col <- dz.tbl$diff[which(dz.tbl$comm.id == comm.lbl & dz.tbl$type.id == type.lbl)];
+  sib.col <- sib.tbl$diff[which(sib.tbl$comm.id == comm.lbl & sib.tbl$type.id == type.lbl)];
+  unr.col <- unr.tbl$diff[which(unr.tbl$comm.id == comm.lbl & unr.tbl$type.id == type.lbl)];
+  x <- list(MZ=mz.col, DZ=dz.col, SIB=sib.col, UNR=unr.col);
+  
+  print(paste(comm.lbl, "Category"));
+  t.out <- t1way(x, tr=do.trim);       # page 323 of stats book
+  print(paste0("F=", t.out$TEST, " p=", t.out$p.value));
+  if (t.out$p.value < 0.05) { print(lincon(x, tr=do.trim)$psihat); }
+  print("", quote=FALSE);
+  print("################################################################################", quote=FALSE);
+}
+
+
+@
+
+
+\newpage
+\begin{landscape}
+\section*{S5.1c UNRhigh Pairwise quantification scores: full dataset}
+\noindent This section is the same as S4.2 (second graph), but with UNRhigh instead of UNR. \par
+\vspace{0.2 cm}
+\noindent Quantification of each set of paired participants' similarity matrix to the Load (blue, L, with both 0 and 2-back) and Category (red, S) The paired participants are arrayed along the x-axis in \textbf{order of increasing mean behavioral performance} within each type (MZ, DZ, SIB, UNRhigh), with the two quantification scores in each column. Displayed correlation and regression lines are between the quantification score and subject order (1:n), not the actual mean pairwise behavior.  \par
+\vspace{0.2 cm} 
+\noindent Despite chosing UNRhigh people to have similar d', the correlation in FrontoParietal Load quantification scores when participants are ordered by performance is not greater in UNRhigh than UNR (UNR numerically higher than UNRhigh). The Visual Category correlation is also a little lower, but it seems unlikely that either would be significantly different. \par
+\vspace{0.2 cm} 
+<<code1g, cache=TRUE, echo=FALSE, dev='pdf', fig.height=5, fig.width=9.8, fig.align='center'>>=
+par(mgp=c(1.1, 0.2, 0), tcl=-0.3);
+# mar: c(bottom, left, top, right) gives the number of lines of margin. Default is c(5, 4, 4, 2) + 0.1.
+
+cx2 <- 0.9;
+num.MZ <- length(MZ.1s);
+num.DZ <- length(DZ.1s);
+num.SIB <- length(SIB.1s);
+num.UNR <- length(UNR.1s);
+
+yLim <- c(-0.192,0.22);
+# to simplify plotting, I manually ran through the code and here are the numbers of missings
+num.MZ.na <- 10; num.DZ.na <- 3; num.SIB.na <- 2; num.UNR.na <- 0;   # UNRhigh
+
+num.tot <- num.MZ-num.MZ.na + num.DZ-num.DZ.na + num.SIB-num.SIB.na + num.UNR-num.UNR.na;
+xLim <- c(-1,num.tot+5);
+
+
+# correlations of the people with each other, left and right averaged;
+do.dots <- function(sub.1s, sub.2s, do.comm, pair.type, load.suffix) {   
+  # do.comm <- "FrontoParietal"; pair.type <- "MZ"; sub.1s <- MZ.1s; sub.2s <- MZ.2s; 
+  fname.quant <- paste0(in.path, "pairwiseCorrelations/", pair.type, "_pairPairwiseDistanceRSAquant_", load.suffix, "_z.txt");
+  quant.tbl <- read.table(fname.quant, stringsAsFactors=FALSE);
+  loads <- quant.tbl$diff[which(quant.tbl$comm.id == do.comm & quant.tbl$type.id == "load")];
+  pics <- quant.tbl$diff[which(quant.tbl$comm.id == do.comm & quant.tbl$type.id == "picture")];
+  if (length(sub.1s) != length(loads)) { stop("length mismatch"); }
+  
+  # mean d'
+  twin1s <- rep(NA, length(sub.1s)); 
+  twin2s <- rep(NA, length(sub.2s)); 
+  for (i in 1:length(sub.1s)) {   # i <- 1;
+    # behavioral measure for each twin 
+    fname1 <- paste0(in.path, "output_behavioral/", sub.1s[i], "_WMbehaviorSummary_bothruns.txt");
+    fname2 <- paste0(in.path, "output_behavioral/", sub.2s[i], "_WMbehaviorSummary_bothruns.txt");
+    if (file.exists(fname1) & file.exists(fname2)) {
+      tmp <- read.table(fname1, stringsAsFactors=FALSE);
+      ind <- which(tmp$stat.name == "dprime" & tmp$load.type == "all" & tmp$cat.type == "Face&Place" & is.na(tmp$trial.type));
+      if (length(ind) != 1) { stop("length(ind) != 1"); } else { twin1s[i] <- tmp$stat.value[ind]; }
+      tmp <- read.table(fname2, stringsAsFactors=FALSE);
+      ind <- which(tmp$stat.name == "dprime" & tmp$load.type == "all" & tmp$cat.type == "Face&Place" & is.na(tmp$trial.type));
+      if (length(ind) != 1) { stop("length(ind) != 1"); } else { twin2s[i] <- tmp$stat.value[ind]; }
+    }
+  }
+  mean.ds <- (twin1s+twin2s)/2;   # mean.ds <- abs(twin1s-twin2s)
+  order.ds <- order(mean.ds, decreasing=FALSE, na.last=TRUE);
+  num.na <- length(which(is.na(mean.ds)));  # last num.na people shouldn't be in the regression
+  order.ds <- order.ds[1:(length(order.ds)-num.na)];
+  
+  if (pair.type == "MZ") { 
+    plus <- 0; 
+    txt.x <- num.MZ - num.MZ.na + 1;  
+  }
+  if (pair.type == "DZ") { 
+    plus <- num.MZ-num.MZ.na + 1; 
+    txt.x <- num.MZ-num.MZ.na + num.DZ-num.DZ.na + 2; 
+  }
+  if (pair.type == "SIB") { 
+    plus <- num.MZ-num.MZ.na + num.DZ-num.DZ.na + 2;  
+    txt.x <- num.MZ-num.MZ.na + num.DZ-num.DZ.na + num.SIB-num.SIB.na + 3; 
+  }
+  if (pair.type == "UNR" | pair.type == "UNRhigh") { 
+    plus <- num.MZ-num.MZ.na + num.DZ-num.DZ.na + num.SIB-num.SIB.na + 3; 
+    txt.x <- num.MZ-num.MZ.na + num.DZ-num.DZ.na + num.SIB-num.SIB.na + num.UNR-num.UNR.na + 4; 
+  }
+  
+  if (load.suffix == "0and2back") { load.pch <- "L"; }
+  if (load.suffix == "just2back") { load.pch <- "2"; }
+  if (load.suffix == "just0back") { load.pch <- "0"; }
+    
+  for (i in 1:length(order.ds)) {    # i <- 1;   # plot all not NA d' pairs
+    points(x=i+plus, y=loads[order.ds[i]], col="blue", pch=load.pch, cex=0.5);
+    points(x=i+plus, y=pics[order.ds[i]], col="red", pch="C", cex=0.5);
+  }
+  ii <- (1:length(order.ds))+plus
+  lmObj <- lm(loads[order.ds] ~ ii)
+  fstat <- summary(lmObj)$fstatistic;
+  pval <- pf(fstat[1], fstat[2], fstat[3], lower.tail=FALSE);
+  txt <- paste0("r=", get.format(cor(ii, loads[order.ds]),2), " p=", get.format(pval,3));
+  text(x=txt.x+3, y=-0.175, labels=txt, pos=2, cex=0.75, col='blue');
+  xs <- range(ii)
+  ys <- predict(lmObj, newdata = data.frame(ii = xs))
+  lines(xs, ys, col="blue");  # so truncates line to subject group range
+  
+  lmObj <- lm(pics[order.ds] ~ ii);
+  fstat <- summary(lmObj)$fstatistic;
+  pval <- pf(fstat[1], fstat[2], fstat[3], lower.tail=FALSE);
+  txt <- paste0("r=", get.format(cor(ii, pics[order.ds]),2), " p=", get.format(pval,3));
+  text(x=txt.x+3, y=-0.15, labels=txt, pos=2, cex=0.75, col='red');
+  xs <- range(ii)
+  ys <- predict(lmObj, newdata = data.frame(ii = xs))
+  lines(xs, ys, col="red");  # so truncates line to subject group range
+}
+
+
+
+make.plot <- function(cluster.id, load.suffix) {   # cluster.id <- "FrontoParietal"; load.suffix <- "0and2back";
+  plot(x=0, y=0, xlim=xLim, ylim=yLim, xaxs='i', yaxs='i', xaxt='n', col='white', xlab="", ylab="", main="", cex.axis=0.8);
+  for (i in c(-0.2, -0.1, 0.1, 0.2)) { lines(x=c(-1,400), y=rep(i,2), col='grey', lty='dashed'); }
+  lines(x=c(-1,400), y=c(0,0), col='grey');
+  
+  if (cluster.id == "FrontoParietal") { do.xpd <- FALSE; } else { do.xpd <- TRUE; }   # lines go lower on bottom
+  lines(x=rep(xLim[1], 2), y=c(-1,yLim[2]), xpd=do.xpd);
+  lines(x=rep(num.MZ-num.MZ.na+1, 2), y=c(-1,yLim[2]), xpd=do.xpd);
+  lines(x=rep(num.MZ-num.MZ.na+num.DZ-num.DZ.na+2, 2), y=c(-1,yLim[2]), xpd=do.xpd);
+  lines(x=rep(num.MZ-num.MZ.na+num.DZ-num.DZ.na+num.SIB-num.SIB.na+3, 2), y=c(-1,yLim[2]), xpd=do.xpd);
+  lines(x=rep(xLim[2], 2), y=c(-1,yLim[2]), xpd=do.xpd);
+  mtext("Quantification Score", side=2, line=1.1, cex=0.9);
+  mtext(cluster.id, side=2, line=2.1, cex=1.2);
+  if (cluster.id == "Visual") {
+    mtext("MZ Twin Pairs", side=1, at=(num.MZ-num.MZ.na)/2, cex=0.9, line=0.9)
+    mtext("Low Performers", side=1, at=0, cex=0.7, adj=0, line=-0.2);
+    mtext("High Performers", side=1, at=(num.MZ-num.MZ.na), cex=0.7, adj=1, line=-0.2);
+    
+    mtext("DZ Twin Pairs", side=1, at=num.MZ-num.MZ.na+(num.DZ-num.DZ.na)/2+1, cex=0.9, line=0.9)
+    mtext("Low Performers", side=1, at=num.MZ-num.MZ.na+2, cex=0.7, adj=0, line=-0.2);
+    mtext("High Performers", side=1, at=num.MZ-num.MZ.na+(num.DZ-num.DZ.na)+1, cex=0.7, adj=1, line=-0.2);
+    
+    mtext("Non-Twin Siblings (SIB)", side=1, at=num.MZ-num.MZ.na+num.DZ-num.DZ.na+(num.SIB-num.SIB.na)/2+2, cex=0.9, line=0.9)
+    mtext("Low Performers", side=1, at=num.MZ-num.MZ.na+num.DZ-num.DZ.na+3, cex=0.7, adj=0, line=-0.2);
+    mtext("High Performers", side=1, at=num.MZ-num.MZ.na+num.DZ-num.DZ.na+(num.SIB-num.SIB.na)+2, cex=0.7, adj=1, line=-0.2);
+    
+    mtext("UNRhigh", side=1, 
+          at=num.MZ-num.MZ.na+num.DZ-num.DZ.na+num.SIB-num.SIB.na+(num.UNR-num.UNR.na)/2+3, cex=0.9, line=0.9);
+    words.at <- num.MZ-num.MZ.na+num.DZ-num.DZ.na+num.SIB-num.SIB.na;
+    mtext("Low Performers", side=1, at=words.at + 4, cex=0.7, adj=0, line=-0.2);
+    mtext("High Performers", side=1, at=words.at+num.UNR-num.UNR.na+3, cex=0.7, adj=1, line=-0.2);
+  }
+  
+  do.dots(MZ.1s, MZ.2s, cluster.id, "MZ", load.suffix); 
+  do.dots(DZ.1s, DZ.2s, cluster.id, "DZ", load.suffix);
+  do.dots(SIB.1s, SIB.2s, cluster.id, "SIB", load.suffix);
+  do.dots(UNR.1s, UNR.2s, cluster.id, "UNRhigh", load.suffix);
+  
+  if (cluster.id == "FrontoParietal" & load.suffix == "0and2back") {    # adjust legend to type of Load quantification
+    legend(x='topright', legend=c("Load Quantification Score", "Category Quantification Score"), 
+           col=c("blue", "red"), pch=c("L","C"), horiz=FALSE, cex=0.75, box.col='white', bg='white'); 
+  }
+  if (cluster.id == "FrontoParietal" & load.suffix == "just2back") {    
+    legend(x='topright', legend=c("2-back Only Load Quant. Score", "Category Quantification Score"), 
+           col=c("blue", "red"), pch=c("2","C"), horiz=FALSE, cex=0.75, box.col='white', bg='white'); 
+  }
+  if (cluster.id == "FrontoParietal" & load.suffix == "just0back") {    
+    legend(x='topright', legend=c("0-back Only Load Quant. Score", "Category Quantification Score"), 
+           col=c("blue", "red"), pch=c("0","C"), horiz=FALSE, cex=0.75, box.col='white', bg='white'); 
+  }
+  box();
+}
+
+
+par(fig=c(0,1,0.52,1), mar=c(0.1, 3, 0.5, 0.75))
+make.plot("FrontoParietal", "0and2back");
+par(fig=c(0,1,0,0.52), mar=c(2, 3, 0.1, 0.75), new=TRUE)
+make.plot("Visual", "0and2back");
+par(new=FALSE);  # reset plotting
+
+@
+
+\end{landscape}
+
+
+
+\newpage
+\section*{S5.2a Community-average COPEs: individual correlation with behavior}
+\noindent This section summarizes results from a univariate version of the analyses: instead of correlating COPEs vertex-wise across people or conditions, the average across all vertices is calculated for each person and COPE, and statistics generated from these community averages. Thus, instead of the vectors for each person shown in Figure 1 of the manuscript we have four single numbers for each person and community: the mean ``activation'' for each COPE.  \par
+\vspace{0.2 cm} 
+\noindent In the main analyses we calculated Load and Category quantification scores to describe whether participants or individuals had more similar activation patterns on some conditions than others. Here, we want to look for differences in mean activations; for example, do high-performing participants tend to have greater mean FrontoParietal activation for 2-back than 0-back conditions? Specifically, we calculated two univariate difference measures: \texttt{twoMzero} (two-back MINUS zero-back) is mean(2BK\textunderscore Face, 2BK\textunderscore Place) - mean(0BK\textunderscore Face, 0BK\textunderscore Place); \texttt{placeMface} (Place MINUS Face) is mean(2BK\textunderscore Face, 0BK\textunderscore Face) - mean(2BK\textunderscore Place, 0BK\textunderscore Place). \par
+\vspace{0.2 cm} 
+\noindent First, these graphs show the correlation between each individual's behavioral performance (d') and difference in community-average COPEs (over FrontoParietal or Visual community vertices). Each person contributes one point to each graph. While we don't expect a difference between subject groups, the results are shown for each as well as all subjects combined (``ALL'').  \par
+\vspace{0.2 cm}
+\noindent It can be seen that there is a positive correlation between behavioral performance (d') and the difference in univariate means: people who tended to have larger differences tended also to have higher performance, particularly for twoMzero in FrontoParietal and placeMface in Visual. While these correlations resemble those in S2.4 (Quantification within individuals: correlation with behavior), that does not establish that the two correlations are due to the same source of variance, which we explored by multiple regression in S5.2b. \par
+\vspace{0.5 cm}
+<<code2a, cache=TRUE, echo=FALSE, dev='pdf', fig.height=1.8, fig.width=7.25, fig.align='center'>>=
+layout(matrix(1:4, c(1,4)));
+par(mar=c(2, 1.75, 1.5, 0.5), mgp=c(1.1, 0.2, 0), tcl=-0.3);
+# mar: c(bottom, left, top, right) gives the number of lines of margin to be specified on the four sides of the plot. Default is c(5, 4, 4, 2) + 0.1.
+
+# back to "real" UNR group (not UNRhigh)
+sub.lbls <- c("MZ", "DZ", "SIB", "UNR");
+UNR.1s <- get.ids("UNR.1s");  UNR.2s <- get.ids("UNR.2s");   
+all.ids <- c(MZ.1s, MZ.2s, DZ.1s, DZ.2s, SIB.1s, SIB.2s, UNR.1s, UNR.2s);
+
+# mean files for each parcel & community: one row per person, one column per COPE, value in cell mean over vertices.
+cols <- c('blue', 'red', 'seagreen', 'sienna4');   # colors for the groups, in sub.lbls order
+
+plot.tri.behav <- function(do.comm, do.diff) {  # do.comm <- "FrontoParietal"; do.diff <- "twoMzero";
+  yLim <- c(-0.1, 4.3);
+  plot(x=0, y=0, xlim=c(-120,150), ylim=yLim, col='white', xlab="", ylab="", main="", cex.axis=0.7);
+  mtext(paste(do.comm, do.diff), side=3, cex=0.7, line=0.1);
+  mtext("Difference in Univariate Means", side=1, cex=0.6, line=1.1);
+  mtext("Behavioral Performance (d')", side=2, cex=0.6, line=0.9);
+  
+  all.tbl <- read.table(paste0(in.path, "pairwiseCorrelations/meanVertices_", do.comm, ".txt"));
+  
+  for (sub.lbl in sub.lbls) {   # sub.lbl <- "MZ"
+    subs <- c(get.ids(paste0(sub.lbl, ".1s")), get.ids(paste0(sub.lbl, ".2s")));
+    if (sub.lbl == "MZ") { clr <- cols[1]; }
+    if (sub.lbl == "DZ") { clr <- cols[2]; }
+    if (sub.lbl == "SIB") { clr <- cols[3]; }
+    if (sub.lbl == "UNR") { clr <- cols[4]; }
+    
+    #corr.tbl <- read.table(paste0(in.path, "pairwiseCorrelations/meanCOPEs_", sub.lbl, "_", do.comm, "LRmean.txt"));
+    corr.tbl <- all.tbl[which(all.tbl$group.id == sub.lbl),];
+    if (nrow(corr.tbl) != length(subs)) { stop("nrow(corr.tbl) != length(subs)"); }
+    
+    ds <- rep(NA, length(subs));   # behavoral measure
+    selfs <- rep(NA, length(subs));   # fMRI (RSA) measure
+    for (i in 1:length(subs)) {   # i <- 1;
+      fname <- paste0(in.path, "output_behavioral/", subs[i], "_WMbehaviorSummary_bothruns.txt");
+      if (file.exists(fname)) {   # have behavioral measures for this person
+        tmp <- read.table(fname, stringsAsFactors=FALSE);
+        ind <- which(tmp$stat.name == "dprime" & tmp$load.type == "all" & tmp$cat.type == "Face&Place" & is.na(tmp$trial.type));
+        if (length(ind) != 1) { stop("length(ind) != 1"); } else { ds[i] <- tmp$stat.value[ind]; }
+        
+        if (do.diff == "twoMzero") {
+          # selfs[i] <- mean(c(corr.tbl[subs[i],"X2bkFace"], corr.tbl[subs[i],"X2bkPlace"])) -
+          #             mean(c(corr.tbl[subs[i],"X0bkFace"], corr.tbl[subs[i],"X0bkPlace"]));
+          selfs[i] <- mean(c(corr.tbl[which(corr.tbl$sub.id == subs[i]),"X2BK_FACE"], corr.tbl[which(corr.tbl$sub.id == subs[i]),"X2BK_PLACE"])) -
+                      mean(c(corr.tbl[which(corr.tbl$sub.id == subs[i]),"X0BK_FACE"], corr.tbl[which(corr.tbl$sub.id == subs[i]),"X0BK_PLACE"]));
+        }
+        if (do.diff == "placeMface") {
+          # selfs[i] <- mean(c(corr.tbl[subs[i],"X0bkPlace"], corr.tbl[subs[i],"X2bkPlace"])) -
+          #             mean(c(corr.tbl[subs[i],"X0bkFace"], corr.tbl[subs[i],"X2bkFace"]));
+          selfs[i] <- mean(c(corr.tbl[which(corr.tbl$sub.id == subs[i]),"X0BK_PLACE"], corr.tbl[which(corr.tbl$sub.id == subs[i]),"X2BK_PLACE"])) -
+                      mean(c(corr.tbl[which(corr.tbl$sub.id == subs[i]),"X0BK_FACE"], corr.tbl[which(corr.tbl$sub.id == subs[i]),"X2BK_FACE"]));
+        }
+      } 
+    }
+
+    if (sub.lbl == "MZ") { all.selfs <- selfs; all.ds <- ds; } else { all.selfs <- c(all.selfs, selfs); all.ds <- c(all.ds, ds); }
+    points(x=selfs, y=ds, cex=0.8, col=clr);
+    do.line(selfs, ds, clr);
+    if (sub.lbl == "UNR") { do.line(all.selfs, all.ds, 'black'); }   # already plotted UNR points; this adds in the "all" line
+    
+    if (sub.lbl == "MZ") { MZ.x <- selfs; MZ.y <- ds; }
+    if (sub.lbl == "DZ") { DZ.x <- selfs; DZ.y <- ds; }
+    if (sub.lbl == "SIB") { SIB.x <- selfs; SIB.y <- ds; }
+    if (sub.lbl == "UNR") { UNR.x <- selfs; UNR.y <- ds; }
+  }
+  if (do.comm == "Visual" & do.diff == "placeMface") { 
+    legend(x="topleft", col=c(cols, "black"), legend=c(sub.lbls, "ALL"), bty='n', cex=0.6, lwd=1.5, lty='solid');
+  } else {
+    legend(x="bottomright", col=c(cols, "black"), legend=c(sub.lbls, "ALL"), bty='n', cex=0.6, lwd=1.5, lty='solid');
+  }
+  box();
+
+  # test if the R squared for each participant group is different than zero  # hc4wtest on page 527 of Wilcox
+  ALL <- hc4wtest(all.selfs, all.ds);  ALL.cor <- cor(all.selfs, all.ds, use='pairwise.complete.obs');
+  MZ <- hc4wtest(MZ.x, MZ.y);          MZ.cor <- cor(MZ.x, MZ.y, use='pairwise.complete.obs');
+  DZ <- hc4wtest(DZ.x, DZ.y);          DZ.cor <- cor(DZ.x, DZ.y, use='pairwise.complete.obs');
+  SIB <- hc4wtest(SIB.x, SIB.y);       SIB.cor <- cor(SIB.x, SIB.y, use='pairwise.complete.obs');
+  UNR <- hc4wtest(UNR.x, UNR.y);       UNR.cor <- cor(UNR.x, UNR.y, use='pairwise.complete.obs');
+  out.row <- c(paste0(get.format(ALL.cor,2), " (", get.format(ALL$p.value,3, TRUE), ")"),
+               paste0(get.format(MZ.cor,2), " (", get.format(MZ$p.value,3, TRUE), ")"),
+               paste0(get.format(DZ.cor,2), " (", get.format(DZ$p.value,3, TRUE), ")"),
+               paste0(get.format(SIB.cor,2), " (", get.format(SIB$p.value,3, TRUE), ")"),
+               paste0(get.format(UNR.cor,2), " (", get.format(UNR$p.value,3, TRUE), ")"));
+  
+  # test the pairwise difference significance means and p-values for later tables
+  # tests hypothesis of equal Pearson correlations; see Wilcox book, page 514
+  pair.tbl <- array("", c(length(sub.lbls), length(sub.lbls)));
+  rownames(pair.tbl) <- sub.lbls;
+  colnames(pair.tbl) <- sub.lbls;
+  
+  val <- twohc4cor(MZ.x, MZ.y, DZ.x, DZ.y);       
+  pair.tbl["DZ","MZ"] <- paste(get.format(val,3,TRUE), get.stars.b(val,6));
+  val <- twohc4cor(MZ.x, MZ.y, SIB.x, SIB.y)
+  pair.tbl["SIB","MZ"] <- paste(get.format(val,3,TRUE), get.stars.b(val,6));
+  val <- twohc4cor(MZ.x, MZ.y, UNR.x, UNR.y)
+  pair.tbl["UNR","MZ"] <- paste(get.format(val,3,TRUE), get.stars.b(val,6));
+  val <- twohc4cor(DZ.x, DZ.y, SIB.x, SIB.y)
+  pair.tbl["SIB","DZ"] <- paste(get.format(val,3,TRUE), get.stars.b(val,6));
+  val <- twohc4cor(DZ.x, DZ.y, UNR.x, UNR.y)
+  pair.tbl["UNR","DZ"] <- paste(get.format(val,3,TRUE), get.stars.b(val,6));
+  val <-twohc4cor(SIB.x, SIB.y, UNR.x, UNR.y)
+  pair.tbl["UNR","SIB"] <- paste(get.format(val,3,TRUE), get.stars.b(val,6));
+  
+  return(list(out.row, pair.tbl));
+}
+
+
+twoMzero.fp <- plot.tri.behav("FrontoParietal", "twoMzero");
+placeMface.fp <- plot.tri.behav("FrontoParietal", "placeMface");
+twoMzero.vis <- plot.tri.behav("Visual", "twoMzero");
+placeMface.vis <- plot.tri.behav("Visual", "placeMface");
+
+
+@
+
+\vspace{0.75 cm} 
+\noindent Correlation between indicated difference in average COPEs and d', for all subjects combined (ALL) and each group individually, as plotted above. p-values for each in parentheses, from \texttt{hc4wtest}, uncorrected for multiple comparisons.  \par
+\vspace{0.1 cm}
+<<code2b, cache=TRUE, echo=FALSE, results='asis'>>=
+ 
+for.xtbl <- data.frame(rbind(twoMzero.fp[[1]], placeMface.fp[[1]], twoMzero.vis[[1]], placeMface.vis[[1]]));
+colnames(for.xtbl) <- c("ALL", sub.lbls);
+rownames(for.xtbl) <- c("FrontoParietal, twoMzero", "FrontoParietal, placeMface", "Visual, twoMzero", "Visual, placeMface");
+print(xtable(for.xtbl), include.rownames=TRUE); 
+
+@
+
+\newpage
+\section*{S5.2b Quant. within individuals: multiple regression with mean activation}
+\noindent This section extends the multiple regressions in S2.5 by adding the four predictors based on the average activation of each community described in S5.2a. These average differences were calculated for each individual and community separately, providing a univariate alternative to the main (correlation-based) multivariate analyses. Several versions of the analysis are shown below. The ``full'' model includes the same four quantification score predictors (FP.load, FP.category, V.load, V.category) as previously (S2.5), as well as four new predictors (FP.twoMzero, FP.placeMface, V.twoMzero, V.placeMface) generated by subtracting the community averages. \par
+\vspace{0.2 cm}
+\noindent Interestingly both FP.load (quantification score) and FP.twoMzero (subtracted community-averages) are highly significant in the new eight-predictor multiple regression, with V.load and V.placeMface less significant. Comparing subsets, the full model fits significantly better than either the quantification score or the mean activation predictors alone. Together, these results suggest that the higher mean activation in FrontoParietal 2-back does not capture all of the same variance as does Load quantification. \par
+
+<<code7a, cache=TRUE, echo=FALSE>>=
+
+# generate a data structure (mreg.tbl) with the proper shape for the multiple regressions
+q.tbl <- read.table(paste0(in.path, "selfCorrelations/all_selfPairwiseDistanceRSAquant_z.txt"));
+
+# mean files for each parcel & community: one row per person, one column per COPE, value in cell mean over vertices.
+fname <- paste0(in.path, "pairwiseCorrelations/meanVertices_FrontoParietal.txt");   # from S6.3
+if (file.exists(fname)) { fp.tbl <- read.table(fname); } else { stop(paste("missing", fname)); }
+fname <- paste0(in.path, "pairwiseCorrelations/meanVertices_Visual.txt");
+if (file.exists(fname)) { vis.tbl <- read.table(fname); } else { stop(paste("missing", fname)); }
+
+
+mreg.tbl <- data.frame(array(NA, c(length(all.ids),9)));   # one row per person
+colnames(mreg.tbl) <- c("dprime", "FP.load", "FP.category", "FP.twoMzero", "FP.placeMface", "V.load", "V.category", "V.twoMzero", "V.placeMface");
+for (i in 1:length(all.ids)) {   # i <- 1;
+  # d' for this person
+  fname <- paste0(in.path, "output_behavioral/", all.ids[i], "_WMbehaviorSummary_bothruns.txt");
+  if (file.exists(fname)) {   # have behavioral measures for this person
+    b.tbl <- read.table(fname, stringsAsFactors=FALSE);
+    ind <- which(b.tbl$stat.name == "dprime" & b.tbl$load.type == "all" & b.tbl$cat.type == "Face&Place" & is.na(b.tbl$trial.type));
+    if (length(ind) != 1) { stop("length(ind) != 1"); } else { mreg.tbl$dprime[i] <- b.tbl$stat.value[ind]; }
+  }
+  
+  # quantification scores for this person
+  mreg.tbl$FP.load[i] <- q.tbl$diff[which(q.tbl$sub.id == all.ids[i] & q.tbl$comm.id == "FrontoParietal" & q.tbl$type.id == "load")];
+  mreg.tbl$FP.category[i] <- q.tbl$diff[which(q.tbl$sub.id == all.ids[i] & q.tbl$comm.id == "FrontoParietal" & q.tbl$type.id == "picture")];
+  mreg.tbl$V.load[i] <- q.tbl$diff[which(q.tbl$sub.id == all.ids[i] & q.tbl$comm.id == "Visual" & q.tbl$type.id == "load")];
+  mreg.tbl$V.category[i] <- q.tbl$diff[which(q.tbl$sub.id == all.ids[i] & q.tbl$comm.id == "Visual" & q.tbl$type.id == "picture")];
+  
+  # community-average differences
+  ind <- which(fp.tbl$sub.id == all.ids[i]);
+  if (length(ind) != 1) { stop("length(ind) != 1"); }
+  mreg.tbl$FP.twoMzero[i] <- mean(c(fp.tbl$X2BK_FACE[ind], fp.tbl$X2BK_PLACE[ind])) - mean(c(fp.tbl$X0BK_FACE[ind], fp.tbl$X0BK_PLACE[ind]));
+  mreg.tbl$FP.placeMface[i] <- mean(c(fp.tbl$X2BK_PLACE[ind], fp.tbl$X0BK_PLACE[ind])) - mean(c(fp.tbl$X2BK_FACE[ind], fp.tbl$X0BK_FACE[ind]));
+  
+  ind <- which(vis.tbl$sub.id == all.ids[i]);
+  if (length(ind) != 1) { stop("length(ind) != 1"); }
+  mreg.tbl$V.twoMzero[i] <- mean(c(vis.tbl$X2BK_FACE[ind], vis.tbl$X2BK_PLACE[ind])) - mean(c(vis.tbl$X0BK_FACE[ind], vis.tbl$X0BK_PLACE[ind]));
+  mreg.tbl$V.placeMface[i] <- mean(c(vis.tbl$X2BK_PLACE[ind], vis.tbl$X0BK_PLACE[ind])) - mean(c(vis.tbl$X2BK_FACE[ind], vis.tbl$X0BK_FACE[ind]));
+}
+
+# head(mreg.tbl)
+#     dprime     FP.load FP.category FP.twoMzero FP.placeMface      V.load V.category V.twoMzero V.placeMface
+# 1 3.243988  0.11280745 -0.05891788   31.536675     11.222538 -0.19116042 0.34111409   4.176921    38.761576
+# 2 3.120527  0.37025817 -0.23287748   -3.884395     16.936240  0.02723926 0.01109641  -6.488175    30.987228
+# 3 1.910456 -0.04319702 -0.19524923   12.064051     11.996719 -0.12907896 0.03196971  26.330893    45.442742
+# 4 2.960355  0.20344964 -0.04464285   45.257033     -2.470244  0.02217756 0.16752092 -31.658496    -5.622342
+
+@
+
+<<code7b, cache=TRUE, echo=TRUE, size='footnotesize'>>=
+
+# full model (all columns)
+lm.full <- lm(mreg.tbl$dprime ~ mreg.tbl$FP.category + mreg.tbl$FP.load + mreg.tbl$FP.twoMzero + mreg.tbl$FP.placeMface + 
+                mreg.tbl$V.load + mreg.tbl$V.category + mreg.tbl$V.twoMzero + mreg.tbl$V.placeMface); 
+summary(lm.full);   # regressor order in model doesn't matter; FP.load & FP.twoMzero, V.load  & V.placeMface significant  
+beta.coef(lm.full);  # from http://www.dataanalytics.org.uk/Data%20Analysis/R%20Monographs/BetaCoeff.htm
+
+####################################################################################################################
+# each new column individually; all four are significant if alone
+
+lm.FPtMz <- lm(mreg.tbl$dprime ~ mreg.tbl$FP.twoMzero);
+summary(lm.FPtMz);  # FP.twoMzero very significant alone
+
+lm.FPpMf <- lm(mreg.tbl$dprime ~ mreg.tbl$FP.placeMface);
+summary(lm.FPpMf);  # FP.placeMface significant alone
+
+lm.VtMz <- lm(mreg.tbl$dprime ~ mreg.tbl$V.twoMzero);
+summary(lm.VtMz);  # V.twoMzero significant alone
+
+lm.VpMf <- lm(mreg.tbl$dprime ~ mreg.tbl$V.placeMface);
+summary(lm.VpMf);  # V.placeMface significant alone
+
+####################################################################################################################
+# comparing models 
+
+lm.FPltMz <- lm(mreg.tbl$dprime ~ mreg.tbl$FP.twoMzero + mreg.tbl$FP.load);
+summary(lm.FPltMz)   
+anova(lm.FPtMz, lm.FPltMz); 
+
+lm.FPl <- lm(mreg.tbl$dprime ~ mreg.tbl$FP.load);
+anova(lm.FPl, lm.FPltMz);   # FP.load AND FP.twoMzero is better than either alone
+
+
+lm.VcpMf <- lm(mreg.tbl$dprime ~ mreg.tbl$V.placeMface + mreg.tbl$V.category);
+summary(lm.VcpMf)   
+anova(lm.VpMf, lm.VcpMf);   # V.category AND V.placeMface is better than either alone
+
+# the four subtraction-based columns only
+lm.sub <- lm(mreg.tbl$dprime ~ mreg.tbl$FP.twoMzero + mreg.tbl$FP.placeMface + mreg.tbl$V.twoMzero + mreg.tbl$V.placeMface); 
+summary(lm.sub);   # FP.twoMzero, V.placeMface, and V.twoMzero significant  
+anova(lm.sub, lm.full);   # significantly different; full model better
+
+# the four quantification-based columns only (same as in S2.5)
+lm.quant <- lm(mreg.tbl$dprime ~ mreg.tbl$FP.category + mreg.tbl$FP.load + mreg.tbl$V.load + mreg.tbl$V.category); 
+# summary(lm.quant);   # FP.load & V.load significant  
+anova(lm.quant, lm.full);   # significantly different; full model better 
+
+@
+
+
+\newpage
+\section*{S5.2c Community-average COPEs: similarity of paired participants}
+\noindent The previous sections show that the difference in community-averaged COPE is related to behavioral performance in individuals, though not in exactly the same way as for Load and Category. Taking this univariate analysis to the paired subjects, do twins have similar mean activation? Rephrased, if a person has a high mean COPE in Visual to 2BK\textunderscore FACE, does their twin as well?  \par
+\vspace{0.2 cm} 
+\noindent Results are first shown for each condition individually, then for the differences (twoMzero and placeMface, as above). On each page the correlations are listed below the graphs (p-values for each in parentheses, from \texttt{hc4wtest}, uncorrected for multiple comparisons), then tests for pairwise correlation differences between the subject groups. \par
+\vspace{0.4 cm} 
+
+\subsubsection*{each mean COPE, FrontoParietal}
+\noindent Only a significant difference between DZ and UNR on 0BK\textunderscore PLACE (and is likely due to the negative correlation in UNR); no correlations significant. This suggests that there is not a relationship between the twins (or other paired subjects) on mean activation difference in FrontoParietal.  \par
+\vspace{0.2 cm}
+<<code2c, echo=FALSE, echo=FALSE, dev='pdf', fig.height=2, fig.width=7.5, fig.align='center', size='footnotesize'>>=
+layout(matrix(1:4, c(1,4)));
+par(mar=c(2, 2, 2, 0.75), mgp=c(1.1, 0.2, 0), tcl=-0.3);
+# mar: c(bottom, left, top, right) gives the number of lines of margin on the four sides of the plot. Default is c(5, 4, 4, 2) + 0.1.
+
+# adapted from"D:\svnFiles\HCP\byFamilyGroup\twinManuscript\knitr\communityAveraging\HCP1200unique_communityAveraging.rnw"
+
+# mean files for each community: one row per person, one column per COPE, value in cell mean over vertices.
+# cope.path <- "d:/svnFiles/HCP/byFamilyGroup/YaelSurface/fromHCP/outputs1200/";
+# for (cid in 1:length(community.ids)) {
+#   out.fname <- paste0(mean.path, "meanVertices_", community.ids[cid], ".txt");
+#   if (!file.exists(out.fname)) {
+#     out.tbl <- data.frame(array(NA, c(length(all.ids), 6)));
+#     colnames(out.tbl) <- c("sub.id", "group.id", "X0BK_FACE", "X0BK_PLACE", "X2BK_FACE", "X2BK_PLACE"); # X to match input colnames
+#     
+#     for (sid in 1:length(all.ids)) {   # sid <- 1;
+#       in.fnameL <- paste0(cope.path, all.ids[sid], "_", community.ids[cid], "L_s2_wmCOPEs.txt");
+#       in.fnameR <- paste0(cope.path, all.ids[sid], "_", community.ids[cid], "R_s2_wmCOPEs.txt");
+#       if (file.exists(in.fnameL) & file.exists(in.fnameR)) {
+#         in.tblL <- read.table(in.fnameL);  # copes in rows, vertices in columns, row & column labels only
+#         in.tblR <- read.table(in.fnameR);
+#         in.tbl <- cbind(in.tblL, in.tblR);
+#         out.tbl$sub.id[sid] <- all.ids[sid];
+#         out.tbl$group.id[sid] <- all.types[sid];
+#         out.tbl[sid,3:6] <- apply(in.tbl, 1, mean);   # regular mean; robust better???
+#       } else { stop("missing???"); }
+#     }
+#     write.table(out.tbl, out.fname);
+#   }
+# }
+
+
+pchs <- c(1,2,3,4);
+lims <- c(-70,150);
+cx <- 0.8;
+cope.ids <- c("0BK_FACE", "0BK_PLACE", "2BK_FACE", "2BK_PLACE");
+if (exists("SIB.X")) { rm(SIB.X); }; if (exists("SIB.Y")) { rm(SIB.Y); };   # clean up
+if (exists("UNR.X")) { rm(UNR.X); }; if (exists("UNR.Y")) { rm(UNR.Y); };
+
+
+make.plot <- function(twin1.cope, twin2.cope, do.comm) {   # do.comm <- "p2"; twin1.cope <- "X0BK_FACE"; twin2.cope <- "X0BK_FACE"; 
+  x.lab <- paste("person 1 mean,", twin1.cope);
+  y.lab <- paste("person 2 mean,", twin2.cope);
+  plot(x=-1, y=-1, xlim=lims, ylim=lims, xlab=x.lab, ylab=y.lab, col='white', main="", cex.lab=cx, cex.axis=cx);
+  mtext(side=3, text=paste(do.comm, twin2.cope), line=0.25, cex=0.7);
+  lines(x=c(-1000,1000), y=c(-1000,1000), col='grey', lwd=2);
+  grid(col='darkgrey');
+
+  for (i in 1:length(sub.lbls)) {    # i <- 1;
+    if (sub.lbls[i] == "MZ") { twin.1s <- MZ.1s; twin.2s <- MZ.2s; }
+    if (sub.lbls[i] == "DZ") { twin.1s <- DZ.1s; twin.2s <- DZ.2s; }
+    if (sub.lbls[i] == "SIB") { twin.1s <- SIB.1s; twin.2s <- SIB.2s; }
+    if (sub.lbls[i] == "UNR") { twin.1s <- UNR.1s; twin.2s <- UNR.2s; }
+    
+    fname <- paste0(in.path, "pairwiseCorrelations/meanVertices_", do.comm, ".txt");
+    if (file.exists(fname)) {
+      in.tbl <- read.table(fname);
+      
+      val1s <- rep(NA, length(twin.1s));
+      val2s <- rep(NA, length(twin.2s));
+      for (tid in 1:length(twin.1s)) {   # tid <- 1;
+        val1s[tid] <- in.tbl[which(in.tbl$sub.id == twin.1s[tid]), paste0("X", twin1.cope)];
+        val2s[tid] <- in.tbl[which(in.tbl$sub.id == twin.2s[tid]), paste0("X", twin2.cope)];
+      }
+      points(x=val1s, y=val2s, col=cols[i], pch=pchs[i]);
+      
+      do.line(val1s, val2s, cols[i]);
+    } else { print(paste("missing:", fname)); }
+  }
+  legend(x='topleft', legend=sub.lbls, col=cols, pch=pchs, horiz=TRUE, cex=0.7, box.col='white', bg='white');
+  box();
+}
+
+
+list.stats <- function(twin1.cope, twin2.cope, do.comm) { # twin1.cope <- "X0BK_FACE"; twin2.cope <- "X0BK_FACE"; do.comm <- "Visual";
+  fname <- paste0(in.path, "pairwiseCorrelations/meanVertices_", do.comm, ".txt");
+  if (!file.exists(fname)) { stop(paste("missing", fname)); }
+  in.tbl <- read.table(fname);
+  
+  for (i in 1:length(sub.lbls)) {    # i <- 1;
+    if (sub.lbls[i] == "MZ") { twin.1s <- MZ.1s; twin.2s <- MZ.2s; }
+    if (sub.lbls[i] == "DZ") { twin.1s <- DZ.1s; twin.2s <- DZ.2s; }
+    if (sub.lbls[i] == "SIB") { twin.1s <- SIB.1s; twin.2s <- SIB.2s; }
+    if (sub.lbls[i] == "UNR") { twin.1s <- UNR.1s; twin.2s <- UNR.2s; }
+    
+    val1s <- rep(NA, length(twin.1s));
+    val2s <- rep(NA, length(twin.2s));
+    for (tid in 1:length(twin.1s)) {   # tid <- 1;
+      val1s[tid] <- in.tbl[which(in.tbl$sub.id == twin.1s[tid]), paste0("X", twin1.cope)];
+      val2s[tid] <- in.tbl[which(in.tbl$sub.id == twin.2s[tid]), paste0("X", twin2.cope)];
+    }
+    
+    if (sub.lbls[i] == "MZ") { MZ.x <- val1s; MZ.y <- val2s; }
+    if (sub.lbls[i] == "DZ") { DZ.x <- val1s; DZ.y <- val2s; }
+    if (sub.lbls[i] == "SIB") { sib.x <- val1s; sib.y <- val2s; }
+    if (sub.lbls[i] == "UNR") { un.x <- val1s; un.y <- val2s; }
+  }
+  
+
+  # test if the R squared for each participant group is different than zero; page 527 of Wilcox
+  MZ <- hc4wtest(MZ.x, MZ.y);          MZ.cor <- cor(MZ.x, MZ.y, use='pairwise.complete.obs');
+  DZ <- hc4wtest(DZ.x, DZ.y);          DZ.cor <- cor(DZ.x, DZ.y, use='pairwise.complete.obs');
+  SIB <- hc4wtest(sib.x, sib.y);       SIB.cor <- cor(sib.x, sib.y, use='pairwise.complete.obs');
+  UNR <- hc4wtest(un.x, un.y);       UNR.cor <- cor(un.x, un.y, use='pairwise.complete.obs');
+  out.row <- c(paste0(get.format(MZ.cor,2), " (", get.format(MZ$p.value,3, TRUE), ")"),
+               paste0(get.format(DZ.cor,2), " (", get.format(DZ$p.value,3, TRUE), ")"),
+               paste0(get.format(SIB.cor,2), " (", get.format(SIB$p.value,3, TRUE), ")"),
+               paste0(get.format(UNR.cor,2), " (", get.format(UNR$p.value,3, TRUE), ")"));
+  
+  
+  # tests hypothesis of equal Pearson correlations; see Wilcox book, page 514
+  pair.tbl <- array("", c(length(sub.lbls), length(sub.lbls)));
+  rownames(pair.tbl) <- sub.lbls;
+  colnames(pair.tbl) <- sub.lbls;
+  
+  val <- twohc4cor(MZ.x, MZ.y, DZ.x, DZ.y);       
+  pair.tbl["DZ","MZ"] <- paste(get.format(val,3,TRUE), get.stars.b(val,6));
+  val <- twohc4cor(MZ.x, MZ.y, sib.x, sib.y)
+  pair.tbl["SIB","MZ"] <- paste(get.format(val,3,TRUE), get.stars.b(val,6));
+  val <- twohc4cor(MZ.x, MZ.y, un.x, un.y)
+  pair.tbl["UNR","MZ"] <- paste(get.format(val,3,TRUE), get.stars.b(val,6));
+  val <- twohc4cor(DZ.x, DZ.y, sib.x, sib.y)
+  pair.tbl["SIB","DZ"] <- paste(get.format(val,3,TRUE), get.stars.b(val,6));
+  val <- twohc4cor(DZ.x, DZ.y, un.x, un.y)
+  pair.tbl["UNR","DZ"] <- paste(get.format(val,3,TRUE), get.stars.b(val,6));
+  val <-twohc4cor(sib.x, sib.y, un.x, un.y)
+  pair.tbl["UNR","SIB"] <- paste(get.format(val,3,TRUE), get.stars.b(val,6));
+  
+  
+  return(list(out.row, pair.tbl));
+}
+
+
+
+for (i in 1:4) { make.plot(cope.ids[i], cope.ids[i], "FrontoParietal"); }   
+
+@
+
+\vspace{0.4 cm} 
+<<code2e, cache=TRUE, echo=FALSE, results='asis'>>=
+
+fp0F <- list.stats("0BK_FACE", "0BK_FACE", "FrontoParietal");
+fp0P <- list.stats("0BK_PLACE", "0BK_PLACE", "FrontoParietal");
+fp2F <- list.stats("2BK_FACE", "2BK_FACE", "FrontoParietal");
+fp2P <- list.stats("2BK_PLACE", "2BK_PLACE", "FrontoParietal");
+
+
+for.xtbl <- data.frame(rbind(fp0F[[1]], fp0P[[1]], fp2F[[1]], fp2P[[1]]));
+colnames(for.xtbl) <- sub.lbls;
+rownames(for.xtbl) <- c("FrontoParietal, 0BK_FACE", "FrontoParietal, 0BK_PLACE", "FrontoParietal, 2BK_FACE", "FrontoParietal, 2BK_PLACE");
+print(xtable(for.xtbl), include.rownames=TRUE);
+
+@
+
+\vspace{0.4 cm}
+\begin{table}[!htb]
+\begin{minipage}{.5\linewidth}
+\noindent \textbf{FrontoParietal, 0BK\textunderscore FACE} \par
+<<code2e1, cache=TRUE, echo=FALSE, results='asis'>>=
+
+print(xtable(fp0F[[2]]));
+
+@
+\end{minipage}
+\begin{minipage}{.5\linewidth}
+\noindent \textbf{FrontoParietal, 0BK\textunderscore PLACE} \par
+<<code2e2, cache=TRUE, echo=FALSE, results='asis'>>=
+
+print(xtable(fp0P[[2]]));
+
+@
+\end{minipage}\end{table}
+
+\vspace{0.4 cm}
+\begin{table}[!htb]
+\begin{minipage}{.5\linewidth}
+\noindent \textbf{FrontoParietal, 2BK\textunderscore FACE} \par
+<<code2e3, cache=TRUE, echo=FALSE, results='asis'>>=
+
+print(xtable(fp2F[[2]]));
+
+@
+\end{minipage}
+\begin{minipage}{.5\linewidth}
+\noindent \textbf{FrontoParietal, 2BK\textunderscore PLACE} \par
+<<code2e4, cache=TRUE, echo=FALSE, results='asis'>>=
+
+print(xtable(fp2P[[2]]));
+
+@
+\end{minipage}\end{table}
+
+
+\newpage
+\subsubsection*{each mean COPE, Visual}
+\noindent Unlike in FrontoParietal, in Visual there are some significant positive correlations in mean activation between the paired participants: 0BK\textunderscore FACE, 0BK\textunderscore PLACE, and 2BK\textunderscore PLACE for MZ; 0BK\textunderscore PLACE and 2BK\textunderscore FACE for DZ; 0BK\textunderscore FACE for SIB; and none for UNR. Additionally, MZ was significantly different than UNR on 0BK\textunderscore FACE and 2BK\textunderscore PLACE. \par
+\vspace{0.2 cm} 
+\noindent This suggests that we can weakly detect some heritability effects with the community-average activation in Visual.   \par
+\vspace{0.4 cm} 
+
+<<code4, echo=FALSE, echo=FALSE, dev='pdf', fig.height=2, fig.width=7.5, fig.align='center'>>=
+layout(matrix(1:4, c(1,4)));
+par(mar=c(2, 2, 2, 0.75), mgp=c(1.1, 0.2, 0), tcl=-0.3);
+# mar: c(bottom, left, top, right) gives the number of lines of margin on the four sides of the plot. Default is c(5, 4, 4, 2) + 0.1.
+
+for (i in 1:4) { make.plot(cope.ids[i], cope.ids[i], "Visual"); }   
+
+@
+
+\vspace{0.4 cm} 
+<<code4a, cache=TRUE, echo=FALSE, results='asis'>>=
+
+v0F <- list.stats("0BK_FACE", "0BK_FACE", "Visual");
+v0P <- list.stats("0BK_PLACE", "0BK_PLACE", "Visual");
+v2F <- list.stats("2BK_FACE", "2BK_FACE", "Visual");
+v2P <- list.stats("2BK_PLACE", "2BK_PLACE", "Visual");
+
+
+for.xtbl <- data.frame(rbind(v0F[[1]], v0P[[1]], v2F[[1]], v2P[[1]]));
+colnames(for.xtbl) <- sub.lbls;
+rownames(for.xtbl) <- c("Visual, 0BK_FACE", "Visual, 0BK_PLACE", "Visual, 2BK_FACE", "Visual, 2BK_PLACE");
+print(xtable(for.xtbl), include.rownames=TRUE);
+
+@
+
+\vspace{0.4 cm}
+\begin{table}[!htb]
+\begin{minipage}{.5\linewidth}
+\noindent \textbf{Visual, 0BK\textunderscore FACE} \par
+<<code4b, cache=TRUE, echo=FALSE, results='asis'>>=
+
+print(xtable(v0F[[2]]));
+
+@
+\end{minipage}
+\begin{minipage}{.5\linewidth}
+\noindent \textbf{Visual, 0BK\textunderscore PLACE} \par
+<<code4c, cache=TRUE, echo=FALSE, results='asis'>>=
+
+print(xtable(v0P[[2]]));
+
+@
+\end{minipage}\end{table}
+
+\vspace{0.4 cm}
+\begin{table}[!htb]
+\begin{minipage}{.5\linewidth}
+\noindent \textbf{Visual, 2BK\textunderscore FACE} \par
+<<code4d, cache=TRUE, echo=FALSE, results='asis'>>=
+
+print(xtable(v2F[[2]]));
+
+@
+\end{minipage}
+\begin{minipage}{.5\linewidth}
+\noindent \textbf{Visual, 2BK\textunderscore PLACE} \par
+<<code4e, cache=TRUE, echo=FALSE, results='asis'>>=
+
+print(xtable(v2P[[2]]));
+
+@
+\end{minipage}\end{table}
+
+
+\newpage
+\subsubsection*{mean COPE differences}
+\noindent Finally, these plot the difference in community-averaged activation across the paired participants (twoMzero and placeMFace as in S5.2a, rather than the four COPEs individually). It is clear from the plots that there is no relationship between the participants' mean activation difference, as confirmed by the listed correlations. There are also no significant differences in correlation between the subject groups (p-values from \texttt{twohc4cor}, a robust test if two Pearson correlations are equal) for any combination of community and difference, as listed in the four tables. So, while some twin similarity in mean activation could be seen in Visual on the individual conditions (previous page), it did not lead to similarity in the placeMface difference.  \par
+\vspace{0.2 cm} 
+
+<<code3a, echo=FALSE, dev='pdf', fig.height=2, fig.width=7.5, fig.align='center'>>=
+layout(matrix(1:4, c(1,4)));
+par(mar=c(2, 2, 2, 0.75), mgp=c(1.1, 0.2, 0), tcl=-0.3);
+# mar: c(bottom, left, top, right) gives the number of lines of margin on the four sides of the plot. Default is c(5, 4, 4, 2) + 0.1.
+# adapted from"D:\svnFiles\HCP\byFamilyGroup\twinManuscript\knitr\communityAveraging\HCP1200unique_communityAveraging.rnw"
+
+lims <- c(-100,120);
+cx <- 0.8;
+
+make.plot <- function(do.comm, do.diff) {   # do.comm <- "FrontoParietal"; do.diff <- "twoMzero";
+  x.lab <- "person 1 mean difference";
+  y.lab <- "person 2 mean difference";
+  plot(x=-1, y=-1, xlim=lims, ylim=lims, xlab=x.lab, ylab=y.lab, col='white', main="", cex.lab=cx, cex.axis=cx);
+  mtext(side=3, text=paste(do.comm, do.diff), line=0.25, cex=0.7);
+  lines(x=c(-1000,1000), y=c(-1000,1000), col='grey', lwd=2);
+  grid(col='darkgrey');
+
+  for (i in 1:length(sub.lbls)) {    # i <- 1;
+    if (sub.lbls[i] == "MZ") { twin.1s <- MZ.1s; twin.2s <- MZ.2s; }
+    if (sub.lbls[i] == "DZ") { twin.1s <- DZ.1s; twin.2s <- DZ.2s; }
+    if (sub.lbls[i] == "SIB") { twin.1s <- SIB.1s; twin.2s <- SIB.2s; }
+    if (sub.lbls[i] == "UNR") { twin.1s <- UNR.1s; twin.2s <- UNR.2s; }
+    
+    fname <- paste0(in.path, "pairwiseCorrelations/meanVertices_", do.comm, ".txt");
+    if (file.exists(fname)) {
+      in.tbl <- read.table(fname);
+      
+      val1s <- rep(NA, length(twin.1s));
+      val2s <- rep(NA, length(twin.2s));
+      for (tid in 1:length(twin.1s)) {   # tid <- 1;
+        ind <- which(in.tbl$sub.id == twin.1s[tid]);
+        if (length(ind) != 1) { stop("length(ind) != 1"); }
+        if (do.diff == "twoMzero") {
+          val1s[tid] <- mean(c(in.tbl$X2BK_FACE[ind], in.tbl$X2BK_PLACE[ind])) - mean(c(in.tbl$X0BK_FACE[ind], in.tbl$X0BK_PLACE[ind]));
+        }
+        if (do.diff == "placeMface") {
+          val1s[tid] <- mean(c(in.tbl$X2BK_PLACE[ind], in.tbl$X0BK_PLACE[ind])) - mean(c(in.tbl$X2BK_FACE[ind], in.tbl$X0BK_FACE[ind]));
+        }
+        
+        ind <- which(in.tbl$sub.id == twin.2s[tid]);
+        if (length(ind) != 1) { stop("length(ind) != 1"); }
+        if (do.diff == "twoMzero") {
+          val2s[tid] <- mean(c(in.tbl$X2BK_FACE[ind], in.tbl$X2BK_PLACE[ind])) - mean(c(in.tbl$X0BK_FACE[ind], in.tbl$X0BK_PLACE[ind]));
+        }
+        if (do.diff == "placeMface") {
+          val2s[tid] <- mean(c(in.tbl$X2BK_PLACE[ind], in.tbl$X0BK_PLACE[ind])) - mean(c(in.tbl$X2BK_FACE[ind], in.tbl$X0BK_FACE[ind]));
+        }  
+      }
+      points(x=val1s, y=val2s, col=cols[i], pch=pchs[i]);
+      
+      do.line(val1s, val2s, cols[i]);
+    } else { print(paste("missing:", fname)); }
+  }
+  legend(x='topleft', legend=sub.lbls, col=cols, pch=pchs, horiz=TRUE, cex=0.7, box.col='white', bg='white');
+  box();
+}
+
+
+
+list.stats2 <- function(do.comm, do.diff) {   # do.comm <- "FrontoParietal"; do.diff <- "twoMzero";
+  fname <- paste0(in.path, "pairwiseCorrelations/meanVertices_", do.comm, ".txt");
+  if (!file.exists(fname)) { stop(paste("missing", fname)); }
+  in.tbl <- read.table(fname);
+  
+  for (i in 1:length(sub.lbls)) {    # i <- 1;
+    if (sub.lbls[i] == "MZ") { twin.1s <- MZ.1s; twin.2s <- MZ.2s; }
+    if (sub.lbls[i] == "DZ") { twin.1s <- DZ.1s; twin.2s <- DZ.2s; }
+    if (sub.lbls[i] == "SIB") { twin.1s <- SIB.1s; twin.2s <- SIB.2s; }
+    if (sub.lbls[i] == "UNR") { twin.1s <- UNR.1s; twin.2s <- UNR.2s; }
+    
+    val1s <- rep(NA, length(twin.1s));
+    val2s <- rep(NA, length(twin.2s));
+    for (tid in 1:length(twin.1s)) {   # tid <- 1;
+      ind <- which(in.tbl$sub.id == twin.1s[tid]);
+      if (length(ind) != 1) { stop("length(ind) != 1"); }
+      if (do.diff == "twoMzero") {
+        val1s[tid] <- mean(c(in.tbl$X2BK_FACE[ind], in.tbl$X2BK_PLACE[ind])) - mean(c(in.tbl$X0BK_FACE[ind], in.tbl$X0BK_PLACE[ind]));
+      }
+      if (do.diff == "placeMface") {
+        val1s[tid] <- mean(c(in.tbl$X2BK_PLACE[ind], in.tbl$X0BK_PLACE[ind])) - mean(c(in.tbl$X2BK_FACE[ind], in.tbl$X0BK_FACE[ind]));
+      }
+      
+      ind <- which(in.tbl$sub.id == twin.2s[tid]);
+      if (length(ind) != 1) { stop("length(ind) != 1"); }
+      if (do.diff == "twoMzero") {
+        val2s[tid] <- mean(c(in.tbl$X2BK_FACE[ind], in.tbl$X2BK_PLACE[ind])) - mean(c(in.tbl$X0BK_FACE[ind], in.tbl$X0BK_PLACE[ind]));
+      }
+      if (do.diff == "placeMface") {
+        val2s[tid] <- mean(c(in.tbl$X2BK_PLACE[ind], in.tbl$X0BK_PLACE[ind])) - mean(c(in.tbl$X2BK_FACE[ind], in.tbl$X0BK_FACE[ind]));
+      }  
+    }
+    
+    if (sub.lbls[i] == "MZ") { MZ.x <- val1s; MZ.y <- val2s; }
+    if (sub.lbls[i] == "DZ") { DZ.x <- val1s; DZ.y <- val2s; }
+    if (sub.lbls[i] == "SIB") { sib.x <- val1s; sib.y <- val2s; }
+    if (sub.lbls[i] == "UNR") { un.x <- val1s; un.y <- val2s; }
+  }
+  
+
+  # test if the R squared for each participant group is different than zero; page 527 of Wilcox
+  MZ <- hc4wtest(MZ.x, MZ.y);          MZ.cor <- cor(MZ.x, MZ.y, use='pairwise.complete.obs');
+  DZ <- hc4wtest(DZ.x, DZ.y);          DZ.cor <- cor(DZ.x, DZ.y, use='pairwise.complete.obs');
+  SIB <- hc4wtest(sib.x, sib.y);       SIB.cor <- cor(sib.x, sib.y, use='pairwise.complete.obs');
+  UNR <- hc4wtest(un.x, un.y);       UNR.cor <- cor(un.x, un.y, use='pairwise.complete.obs');
+  out.row <- c(paste0(get.format(MZ.cor,2), " (", get.format(MZ$p.value,3, TRUE), ")"),
+               paste0(get.format(DZ.cor,2), " (", get.format(DZ$p.value,3, TRUE), ")"),
+               paste0(get.format(SIB.cor,2), " (", get.format(SIB$p.value,3, TRUE), ")"),
+               paste0(get.format(UNR.cor,2), " (", get.format(UNR$p.value,3, TRUE), ")"));
+  
+  
+  # tests hypothesis of equal Pearson correlations; see Wilcox book, page 514
+  pair.tbl <- array("", c(length(sub.lbls), length(sub.lbls)));
+  rownames(pair.tbl) <- sub.lbls;
+  colnames(pair.tbl) <- sub.lbls;
+  
+  val <- twohc4cor(MZ.x, MZ.y, DZ.x, DZ.y);       
+  pair.tbl["DZ","MZ"] <- paste(get.format(val,3,TRUE), get.stars.b(val,6));
+  val <- twohc4cor(MZ.x, MZ.y, sib.x, sib.y)
+  pair.tbl["SIB","MZ"] <- paste(get.format(val,3,TRUE), get.stars.b(val,6));
+  val <- twohc4cor(MZ.x, MZ.y, un.x, un.y)
+  pair.tbl["UNR","MZ"] <- paste(get.format(val,3,TRUE), get.stars.b(val,6));
+  val <- twohc4cor(DZ.x, DZ.y, sib.x, sib.y)
+  pair.tbl["SIB","DZ"] <- paste(get.format(val,3,TRUE), get.stars.b(val,6));
+  val <- twohc4cor(DZ.x, DZ.y, un.x, un.y)
+  pair.tbl["UNR","DZ"] <- paste(get.format(val,3,TRUE), get.stars.b(val,6));
+  val <-twohc4cor(sib.x, sib.y, un.x, un.y)
+  pair.tbl["UNR","SIB"] <- paste(get.format(val,3,TRUE), get.stars.b(val,6));
+  
+  
+  return(list(out.row, pair.tbl));
+}
+
+
+for (diff.name in c("twoMzero", "placeMface")) { make.plot("FrontoParietal", diff.name); }
+
+for (diff.name in c("twoMzero", "placeMface")) { make.plot("Visual", diff.name); }
+
+
+@
+
+\vspace{0.4 cm} 
+<<code3b, cache=TRUE, echo=FALSE, results='asis'>>=
+
+fp20 <- list.stats2("FrontoParietal", "twoMzero");
+fpPF <- list.stats2("FrontoParietal", "placeMface");
+v20 <- list.stats2("Visual", "twoMzero");
+vPF <- list.stats2("Visual", "placeMface");
+
+for.xtbl <- data.frame(rbind(fp20[[1]], fpPF[[1]], v20[[1]], vPF[[1]]));
+colnames(for.xtbl) <- sub.lbls;
+rownames(for.xtbl) <- c("FrontoParietal, twoMzero", "FrontoParietal, placeMface", "Visual, twoMzero", "Visual, placeMface");
+print(xtable(for.xtbl), include.rownames=TRUE);
+
+@
+
+\vspace{0.4 cm}
+\begin{table}[!htb]
+\begin{minipage}{.5\linewidth}
+\noindent \textbf{FrontoParietal, twoMzero} \par
+<<code3c, cache=TRUE, echo=FALSE, results='asis'>>=
+
+print(xtable(fp20[[2]]));
+
+@
+\end{minipage}
+\begin{minipage}{.5\linewidth}
+\noindent \textbf{FrontoParietal, placeMface} \par
+<<code3d, cache=TRUE, echo=FALSE, results='asis'>>=
+
+print(xtable(fpPF[[2]]));
+
+@
+\end{minipage}\end{table}
+
+
+\vspace{0.4 cm}
+\begin{table}[!htb]
+\begin{minipage}{.5\linewidth}
+\noindent \textbf{Visual, twoMzero} \par
+<<code3e, cache=TRUE, echo=FALSE, results='asis'>>=
+
+print(xtable(v20[[2]]));
+
+@
+\end{minipage}
+\begin{minipage}{.5\linewidth}
+\noindent \textbf{Visual, placeMface} \par
+<<code3f, cache=TRUE, echo=FALSE, results='asis'>>=
+
+print(xtable(vPF[[2]]));
+
+@
+\end{minipage}\end{table}
+
+
+
+\end{document}

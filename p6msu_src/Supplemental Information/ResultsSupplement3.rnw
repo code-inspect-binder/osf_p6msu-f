@@ -1,0 +1,989 @@
+\documentclass[letterpaper]{article}
+\usepackage{fullpage}
+\usepackage{pdflscape}
+\usepackage{textcomp}
+\addtolength{\hoffset}{-.5in}
+\addtolength{\textwidth}{1in}
+\addtolength{\voffset}{-.5in}
+\addtolength{\textheight}{1in}
+\begin{document}
+
+\subsection*{Results Supplement 3}
+\noindent source and input files available at \texttt{https://osf.io/p6msu/} \par
+\noindent compiled \today\  \par
+\noindent Results Supplement 3 for ``Pattern similarity analyses of frontoparietal task coding: Individual variation and genetic influences'' by Joset A. Etzel, Ya'el Courtney, Caitlin E. Carey, Maria Z. Gehred, Arpana Agrawal, and Todd S. Braver. \par
+\vspace{0.2 cm} 
+\noindent This is a \texttt{knitr} file (\texttt{https://yihui.name/knitr/}); see the \texttt{.rnw} file with the same name as this \texttt{.pdf} for the R code to generate all figures and results. To compile, change the \texttt{in.path} variable to the location of the \texttt{input} directory downloaded from   \textbf{https://osf.io/p6msu/}. \par
+
+<<startup, echo=FALSE, message=FALSE, warning=FALSE>>=
+# Results Supplement 3 for ``Pattern similarity analyses of frontoparietal task coding: Individual variation and genetic influences'' by Joset A. Etzel, Ya'el Courtney, Caitlin E. Carey, Maria Z. Gehred, Arpana Agrawal, and Todd S. Braver
+# https://osf.io/p6msu/
+# code written by Joset A. Etzel, jetzel@wustl.edu. It may be adapted for other research use, provided the source is cited.
+
+library(nlme);   # for the mixed models
+library(multcomp);  # also for the mixed models
+library(xtable);   # for table formatting
+library(DescTools);   # for YuenTTest
+library(WRS2);  # the trimse function from the WRS2 library is used for robust SEM
+library(scales);  # for the colors (brewer_pal)
+
+rm(list=ls());
+
+in.path <- "d:/svnFiles/HCP/byFamilyGroup/twinManuscript/forSubmission/input/";    # change this to the path on your computer
+
+
+opts_knit$set(width=150);   # make the text output wider
+options(xtable.floating=FALSE);
+source(paste0(in.path, "subPairings.R"));  # get.ids function
+do.trim <- 0.1;  # how much trimming to do in the mean and SEM
+
+# get the subject ID codes for the various subject groups
+sub.lbls <- c("MZ", "DZ", "SIB", "UNR")
+MZ.1s <- get.ids("MZ.1s");    MZ.2s <- get.ids("MZ.2s");  
+DZ.1s <- get.ids("DZ.1s");    DZ.2s <- get.ids("DZ.2s");  
+SIB.1s <- get.ids("SIB.1s");  SIB.2s <- get.ids("SIB.2s");  
+UNR.1s <- get.ids("UNR.1s");  UNR.2s <- get.ids("UNR.2s");  
+
+cond.ids <- c("0,F", "0,P", "2,F", "2,P");
+cope.ids <- c("0bkFace",  "0bkPlace", "2bkFace",  "2bkPlace");   # ordered as in input files; see create_copes_selfCorrs.R
+pair.ids1 <- c(rep(cope.ids[1],4), rep(cope.ids[2],4), rep(cope.ids[3],4), rep(cope.ids[4],4));   # for RSA-style; need mixed pairs
+pair.ids2 <- rep(cope.ids, 4);    # rbind(pair.ids1, pair.ids2)
+pair.ids <- paste(pair.ids1, pair.ids2, sep=".");  # [1] "0bkFace.0bkFace"   "0bkFace.0bkPlace"  "0bkFace.2bkFace"  ...
+community.ids <- c("FrontoParietal", "Visual");
+
+clr.scale <- brewer_pal("div", palette="RdBu")(11);
+pal <- colorRampPalette(clr.scale);
+centers <- seq(from=0, to=1, length.out=4);  # midpoints of the boxes
+
+
+# various helper functions
+get.FTrz <- function(in.val) { return(.5 * log((1+in.val)/(1-in.val))); }  # Fisher's r-to-z transformation.
+get.FTzr <- function(in.val) { return((exp(2*in.val)-1)/(exp(2*in.val)+1)); }  # Fisher's z-to-r transformation
+
+
+# little function to return a string of Bonferroni-corrected p-value stars; in.val is the p-value, b.num how many comparisons.
+get.stars.b <- function(in.val, b.num=1) {  
+  out.val <- "";
+  if (in.val < (0.05/b.num)) { out.val <- "*"; } 
+  if (in.val < (0.01/b.num)) { out.val <- "**"; }
+  if (in.val < (0.001/b.num)) { out.val <- "***"; }
+  
+  return(out.val);
+}
+
+
+# formatting function to round the output to 'digits' digits and removing the leading zero.
+get.format <- function (inval, digits=3, is.p=FALSE) {   # digits <- 3; inval <- 0.00003;
+  outval <- "";
+  if (!is.na(inval)) { 
+    if (inval < 0) {outval <- gsub("^-0", "-", round(inval, digits)); }
+    if (inval > 0) { outval <- gsub("^0", "", round(inval, digits)); }
+    if (inval == 0 & is.p == FALSE) { outval <- "0"; }
+    if (outval == "") {
+      if (digits == 2) { outval <- "<.01"; }
+      if (digits == 3) { outval <- "<.001"; }
+      if (digits == 4) { outval <- "<.0001"; }
+      if (digits == 5) { outval <- "<.00001"; }
+    }
+    if (outval == "-") {
+      if (digits == 2) { outval <- "<-.01"; }
+      if (digits == 3) { outval <- "<-.001"; }
+      if (digits == 4) { outval <- "<-.0001"; }
+      if (digits == 5) { outval <- "<-.00001"; }
+    }
+  }
+  
+  return(outval);
+}
+
+
+@
+
+
+\section*{S3.1 Example pairwise similarity matrices and group average}
+<<code2b, cache=TRUE, echo=FALSE, dev='pdf', fig.height=1.4, fig.width=7.5, fig.align="center">>=
+layout(matrix(1:6, c(1,6)));
+par(mar=c(2, 2, 2, 0.5), mgp=c(1.1, 0.2, 0), tcl=-0.3);
+# mar: c(bottom, left, top, right) gives the number of lines of margin. Default is c(5, 4, 4, 2) + 0.1.
+
+# "_pairPairwiseDistanceRSA.txt" files made in code7
+
+show.pair.RSA <- function(pair.type, pair.ind) {    # pair.type <- "MZ"; pair.ind <- 3;
+  sub.1s <- get.ids(paste0(pair.type, ".1s"));
+  sub.2s <- get.ids(paste0(pair.type, ".2s"));
+  
+  for (comm.id in c("FrontoParietal", "Visual")) {
+    fname <- paste0(in.path, "pairwiseCorrelations/", pair.type, "_", comm.id, "_pairPairwiseDistanceRSA.txt");   # code7
+    if (file.exists(fname)) { fp.tbl <- read.table(fname, stringsAsFactors=FALSE); } else { stop(paste("missing:", fname)); }
+    
+    tmp <- as.numeric(fp.tbl[pair.ind,]);   # vector of correlations 
+    plt.matrix <- matrix(tmp, nrow=4, ncol=4);     # reshape into a matrix
+    plt.matrix <- plt.matrix[,4:1];  # so plot has the usual diagonal direction
+    image(plt.matrix, col=pal(40), zlim=c(-1,1), main="", xlab="", ylab="", axes=FALSE, useRaster=TRUE);   # plot the correlation matrix
+    mtext(side=3, text=paste0(comm.id, ": ", pair.type, " pair ", pair.ind), line=0.1, cex=0.6);   # title
+    mtext(side=1, text=paste("Person", sub.1s[pair.ind]), line=1, cex=0.6);    # x-axis label
+    mtext(side=2, text=paste("Person", sub.2s[pair.ind]), line=1.3, cex=0.6);  # y-axis label
+    axis(side=1, at=centers, labels=cond.ids, cex.axis=0.9, las=1, lwd.ticks=0);
+    axis(side=2, at=centers, labels=rev(cond.ids), cex.axis=0.9, las=1, lwd.ticks=0);
+    box();
+  }
+}
+
+for (i in 7:15) { show.pair.RSA("MZ", i); }
+for (i in 7:15) { show.pair.RSA("DZ", i); }
+for (i in 1:6) { show.pair.RSA("SIB", i); }
+for (i in 1:9) { show.pair.RSA("UNR", i); }
+
+
+@
+
+<<code2c, cache=TRUE, echo=FALSE, dev='pdf', fig.height=1, fig.width=7.5, fig.align="center">>=
+#layout(matrix(1:4, c(1,4)));
+par(mar=c(0.1, 0.5, 0.1, 0.5), mgp=c(1.1, 0.2, 0), tcl=-0.3);
+# mar: c(bottom, left, top, right) gives the number of lines of margin on the four sides of the plot. Default is c(5, 4, 4, 2) + 0.1.
+
+plot(x=0, y=0, col='white', ylab="", xlab="", main="", bty='n', xaxt='n', yaxt='n');   # blank plot to hold legend
+legend('top', fill=pal(11)[4:11], legend=round(seq(from=-0.4, to=1, length.out=8),2), bty='n', cex=1, title="", horiz=TRUE);
+
+@
+
+\newpage
+\noindent Group-average pairwise similarity matrices. Numbers printed on each cell are the mean and SEM (in brackets). Both are robust statistics, trimmed at \Sexpr{do.trim}. The diagonal has matched conditions (e.g., 0-back Face with 0-back Face) and are the same as in Figure 7 and S3.2.  \par
+\vspace{0.2 cm}
+<<code7, cache=TRUE, echo=FALSE, dev='pdf', fig.height=2.0, fig.width=7.5, fig.align="center">>=
+layout(matrix(1:4, c(1,4)));
+par(mar=c(2.2, 2.5, 2, 0.75), mgp=c(1.1, 0.2, 0), tcl=-0.3);
+# mar: c(bottom, left, top, right) gives the number of lines of margin on the four sides of the plot. Default is c(5, 4, 4, 2) + 0.1.
+
+
+make.2person.plot <- function(do.comm, pair.type, ttl) {  # do.comm <- "Visual"; ttl <- do.comm; pair.type <- "MZ";
+  sub.1s <- get.ids(paste0(pair.type, ".1s"));
+  sub.2s <- get.ids(paste0(pair.type, ".2s"));
+  sub.conc <- paste0(sub.1s, ".", sub.2s);  # concatenated version for row labels
+  
+  fname.cor <- paste0(in.path, "pairwiseCorrelations/", pair.type, "_", do.comm, "_pairPairwiseDistanceRSA.txt");
+  if (!file.exists(fname.cor)) { 
+    out.tbl <- array(NA, c(length(sub.conc), length(pair.ids)));   # in pair.ids, first stimulus is from first person, second from second
+    rownames(out.tbl) <- sub.conc;
+    colnames(out.tbl) <- pair.ids;
+    for (sid in 1:length(sub.1s)) {   # sid <- 1;
+      # NOTE: code to create these _wmCOPEs.txt files is in create_copes_selfCorrs.R
+      fname1L <- paste0(in.path, "outputs1/", sub.1s[sid], "_", do.comm, "L_s2_wmCOPEs.txt");  # COPE values for L
+      fname1R <- paste0(in.path, "outputs1/", sub.1s[sid], "_", do.comm, "R_s2_wmCOPEs.txt");  # and R, person 1 of pair
+      fname2L <- paste0(in.path, "outputs1/", sub.2s[sid], "_", do.comm, "L_s2_wmCOPEs.txt");  # same, person 2 of pair
+      fname2R <- paste0(in.path, "outputs1/", sub.2s[sid], "_", do.comm, "R_s2_wmCOPEs.txt");
+
+      if (file.exists(fname1L) & file.exists(fname1R) & file.exists(fname2L) & file.exists(fname2R)) {
+        tbl.1L <- read.table(fname1L);     # one row per cope, one column per voxel (in the community & hemisphere)
+        tbl.1R <- read.table(fname1R);  
+        tbl.2L <- read.table(fname2L);  
+        tbl.2R <- read.table(fname2R);  
+        
+        for (i in 1:length(pair.ids1)) {    # i <- 1;   # copes to pair up; 1st for person 1 of pair, 2nd for person 2 of pair
+          num <- which(cope.ids == pair.ids1[i]);  #num <- cope.nums[which(cope.ids == pair.ids1[i])];  # cope number corresponding to condition pair.ids1[i]
+          vec1L <- tbl.1L[num,];    # vector for person 1, L
+          vec1R <- tbl.1R[num,];   
+          num <- which(cope.ids == pair.ids2[i]);  #num <- cope.nums[which(cope.ids == pair.ids2[i])];  # cope number corresponding to condition pair.ids2[i]
+          vec2L <- tbl.2L[num,];    # vector for person 2, L
+          vec2R <- tbl.2R[num,];
+          
+          corL <- cor(t(vec1L), t(vec2L), method='pearson');   # correlation of the two paired people, left hemisphere
+          corR <- cor(t(vec1R), t(vec2R), method='pearson');  
+          corLR <- mean(c(get.FTrz(corL), get.FTrz(corR)));   # average the hemispheres, via Fisher's R-to-Z transformation
+          out.tbl[paste(sub.1s[sid], sub.2s[sid], sep="."),paste(pair.ids1[i], pair.ids2[i], sep=".")] <- get.FTzr(corLR);  # store the mean, back as corr.
+        }
+      } else { stop("something is missing"); }
+    }
+    write.table(out.tbl, fname.cor);
+  } 
+  all.tbl <- read.table(fname.cor);
+  if (length(sub.conc) != nrow(all.tbl)) { stop("length(sub.ids) != nrow(all.tbl)"); }
+  
+  # average and SEM in each cell over all the subject pairs
+  z.tbl <- get.FTrz(all.tbl); 
+  cell.lbls <- rep(NA, ncol(z.tbl));
+  for (i in 1:ncol(z.tbl)) {   # i <- 1;
+    m <- get.FTzr(mean(z.tbl[,i], trim=do.trim));
+    se <- get.FTzr(trimse(z.tbl[,i], tr=do.trim));
+    cell.lbls[i] <- paste0(get.format(m), "\n{", get.format(se,3), "}");
+  }
+  cell.lbls <- matrix(cell.lbls, nrow=4, ncol=4);   
+  cell.lbls <- cell.lbls[,4:1];  # so plot has the usual diagonal direction
+  
+  tmp <- get.FTzr(apply(z.tbl, 2, mean, trim=do.trim));   # average does cell color
+  plt.matrix <- matrix(tmp, nrow=4, ncol=4);   
+  plt.matrix <- plt.matrix[,4:1];  # so plot has the usual diagonal direction
+  image(plt.matrix, col=pal(40), zlim=c(-1,1), main="", xlab="", ylab="", axes=FALSE, useRaster=TRUE);
+  mtext(side=3, text=ttl, line=0.1, cex=0.7); 
+  axis(side=1, at=centers, labels=cond.ids, cex.axis=0.9, las=1, lwd.ticks=0);
+  mtext(side=1, text="Person 1 of Pair", line=1.25, cex=0.6); 
+  axis(side=2, at=centers, labels=rev(cond.ids), cex.axis=0.9, las=1, lwd.ticks=0)
+  mtext(side=2, text="Person 2 of Pair", line=1.5, cex=0.6, las=3); 
+  
+  for (i in 4:1) {
+    for (j in 1:4) {   # i <- 4; j <- 1;
+      text(x=centers[i], y=centers[j], labels=cell.lbls[i,j], cex=0.8);
+    }
+  }
+  box();
+}
+
+
+for (cname in c("FrontoParietal", "Visual")) { 
+  for (i in 1:length(sub.lbls)) { make.2person.plot(cname, sub.lbls[i], paste0(cname, ", ", sub.lbls[i])); }   
+}
+
+@
+
+<<code7b, cache=TRUE, echo=FALSE, dev='pdf', fig.height=2.0, fig.width=7.5, fig.align="center">>=
+#layout(matrix(1:4, c(1,4)));
+par(mar=c(0.5, 0.5, 0.5, 0.5), mgp=c(1.1, 0.2, 0), tcl=-0.3);
+# mar: c(bottom, left, top, right) gives the number of lines of margin to be specified on the four sides of the plot. Default is c(5, 4, 4, 2) + 0.1.
+
+# blank plot to hold legend
+plot(x=0, y=0, col='white', ylab="", xlab="", main="", bty='n', xaxt='n', yaxt='n');  
+legend('top', fill=pal(21)[11:21], legend=round(seq(from=0, to=1, length.out=10),1), bty='n', cex=0.8, title="Mean Correlation", horiz=TRUE);
+
+@
+
+\newpage
+\section*{S3.2 Pairwise similarity of matched conditions}
+\noindent Mean similarity of each stimulus type separately; error bars are standard error of the mean (SEM). Both are robust statistics, trimmed at \Sexpr{do.trim}. Horizontal lines indicate bars that significantly (p \textless .0083, Bonferroni correction of .05 for 6 comparisons) differ in a t-test; see below for t-test t and p values. Note that the y-axis scaling differs between the two plots. \par
+\vspace{0.2 cm} 
+<<code1, cache=TRUE, echo=FALSE, dev='pdf', fig.height=3.5, fig.width=8, fig.align='center'>>=
+layout(matrix(1:2, c(1,2)));
+par(mar=c(2, 2, 2, 0.75), mgp=c(1.1, 0.2, 0), tcl=-0.3);
+# mar: c(bottom, left, top, right) gives the number of lines of margin to be specified on the four sides of the plot. Default is c(5, 4, 4, 2) + 0.1.
+
+same.pair.lbls <- c("0,F", "2,F", "0,P", "2,P");  # shorter version for the output files
+long.pair.lbls <- c("0-back,Face", "2-back,Face", "0-back,Place", "2-back,Place");  # and longer version, for the table columns
+col.lbls <- c("X0bkFace.0bkFace", "X2bkFace.2bkFace", "X0bkPlace.0bkPlace", "X2bkPlace.2bkPlace");    # same order, but as appears in column names
+match.cols <- c("gray26", "darkgrey", "lightgrey", "white");
+
+shifts <- seq(from=-0.35, to=0.35, length.out=5);  # where to put the bars
+mids <- c(mean(shifts[1:2]),mean(shifts[2:3]),mean(shifts[3:4]), mean(shifts[4:5]));  # middle of the bars (for the SEM lines, etc)
+
+# store the pairwise difference significance means and p-values for later tables
+print.tbl <- array("", c(length(sub.lbls), length(sub.lbls)));
+rownames(print.tbl) <- sub.lbls;
+colnames(print.tbl) <- sub.lbls;
+all.pairwise.ts <- list("0,F"=print.tbl, "2,F"=print.tbl, "0,P"=print.tbl, "2,P"=print.tbl);
+
+
+for (comm.id in c("FrontoParietal", "Visual")) {     # comm.id <- "FrontoParietal";  
+  mz.tbl <- read.table(paste0(in.path, "pairwiseCorrelations/MZ_", comm.id, "_pairPairwiseDistanceRSA.txt"), stringsAsFactors=FALSE);    # code7
+  dz.tbl <- read.table(paste0(in.path, "pairwiseCorrelations/DZ_", comm.id, "_pairPairwiseDistanceRSA.txt"), stringsAsFactors=FALSE); 
+  sib.tbl <- read.table(paste0(in.path, "pairwiseCorrelations/SIB_", comm.id, "_pairPairwiseDistanceRSA.txt"), stringsAsFactors=FALSE); 
+  un.tbl <- read.table(paste0(in.path, "pairwiseCorrelations/UNR_", comm.id, "_pairPairwiseDistanceRSA.txt"), stringsAsFactors=FALSE); 
+  
+  mean.tbl <- data.frame(array(NA, c(length(same.pair.lbls), length(sub.lbls))));  # show means & SEMs in a table
+  colnames(mean.tbl) <- sub.lbls;
+  rownames(mean.tbl) <- same.pair.lbls;
+  
+  if (comm.id == "FrontoParietal") { yLim <- c(0, 0.43); } else { yLim <- c(0,0.85); }
+  plot(x=0, y=0, xlim=c(0.7,4.3), ylim=yLim, yaxs='i', col='white', xlab="", ylab="Similarity (Pearson correlation)", main="", xaxt='n');
+  axis(side=1, at=1:4, labels=c("0-back\nFace", "2-back\nFace", "0-back\nPlace", "2-back\nPlace"), padj=0.6)
+  grid(nx=NA, ny=NULL, col='darkgrey');
+  mtext(side=3, text=paste(comm.id, "Community"), line=0.25);
+  
+  for (m in 1:length(same.pair.lbls)) {  # m <- 1;
+    # draw the bar for each same.pair.lbls, this community; store the mean and standard error in mean.tbl for later printing
+    vals <- get.FTrz(mz.tbl[,col.lbls[m]]);   # transform values
+    yTop <- get.FTzr(mean(vals, trim=do.trim));
+    se <- get.FTzr(trimse(vals, tr=do.trim));
+    rect(xleft=(m+shifts[1]), xright=(m+shifts[2]), ybottom=0, ytop=yTop, col=match.cols[1]);
+    arrows(x0=(m+mids[1]), y0=yTop, x1=(m+mids[1]), y1=(yTop+se), angle=90, length=0.04);  # error bars
+    arrows(x0=(m+mids[1]), y0=yTop, x1=(m+mids[1]), y1=(yTop-se), angle=90, length=0.04);
+    mean.tbl$MZ[m] <- paste0(get.format(yTop), " {", get.format(se,4), "}");
+    
+    vals <- get.FTrz(dz.tbl[,col.lbls[m]]);  
+    se <- get.FTzr(trimse(vals, tr=do.trim));
+    yTop <- get.FTzr(mean(vals, trim=do.trim));
+    rect(xleft=(m+shifts[2]), xright=(m+shifts[3]), ybottom=0, ytop=yTop, col=match.cols[2]);
+    arrows(x0=(m+mids[2]), y0=yTop, x1=(m+mids[2]), y1=(yTop+se), angle=90, length=0.04);  # error bars
+    arrows(x0=(m+mids[2]), y0=yTop, x1=(m+mids[2]), y1=(yTop-se), angle=90, length=0.04);
+    mean.tbl$DZ[m] <- paste0(get.format(yTop), " {", get.format(se,4), "}");
+    
+    vals <- get.FTrz(sib.tbl[,col.lbls[m]]);  
+    yTop <- get.FTzr(mean(vals, trim=do.trim));
+    se <- get.FTzr(trimse(vals, tr=do.trim));
+    rect(xleft=(m+shifts[3]), xright=(m+shifts[4]), ybottom=0, ytop=yTop, col=match.cols[3]);
+    arrows(x0=(m+mids[3]), y0=yTop, x1=(m+mids[3]), y1=(yTop+se), angle=90, length=0.04);  # error bars
+    arrows(x0=(m+mids[3]), y0=yTop, x1=(m+mids[3]), y1=(yTop-se), angle=90, length=0.04);
+    mean.tbl$SIB[m] <- paste0(get.format(yTop), " {", get.format(se,4), "}");
+    
+    vals <- get.FTrz(un.tbl[,col.lbls[m]]);  
+    yTop <- get.FTzr(mean(vals, trim=do.trim));
+    se <- get.FTzr(trimse(vals, tr=do.trim));
+    rect(xleft=(m+shifts[4]), xright=(m+shifts[5]), ybottom=0, ytop=yTop, col=match.cols[4]);
+    arrows(x0=(m+mids[4]), y0=yTop, x1=(m+mids[4]), y1=(yTop+se), angle=90, length=0.04);  # error bars
+    arrows(x0=(m+mids[4]), y0=yTop, x1=(m+mids[4]), y1=(yTop-se), angle=90, length=0.04);
+    mean.tbl$UNR[m] <- paste0(get.format(yTop), " {", get.format(se,4), "}");
+    
+    # significance from t-tests .... mixed models don't work, since not for each bar separately.
+    ttest <- YuenTTest(x=mz.tbl[,col.lbls[m]], y=dz.tbl[,col.lbls[m]], paired=FALSE, alternative="two.sided", trim=do.trim);    # MZ DZ
+    strs <- get.stars.b(ttest$p.value, 6);   # strs <- get.stars(ttest$p.value);
+    if (strs != "") {
+      if (comm.id == "FrontoParietal") { yl <- 0.33; } else { yl <- 0.65; }
+      lines(x=c((m+mids[1]),(m+mids[2])), y=rep(yl,2), lwd=2);
+    }
+    all.pairwise.ts[[same.pair.lbls[m]]]["DZ", "MZ"] <- paste0(get.format(ttest$statistic,2), " (", get.format(ttest$p.value), ")", get.stars.b(ttest$p.value,6));
+    
+    ttest <- YuenTTest(x=mz.tbl[,col.lbls[m]], y=un.tbl[,col.lbls[m]], paired=FALSE, alternative="two.sided", trim=do.trim);    # MZ un
+    strs <- get.stars.b(ttest$p.value, 6);   # strs <- get.stars(ttest$p.value);
+    if (strs != "") {
+      if (comm.id == "FrontoParietal") { yl <- 0.36; } else { yl <- 0.71; }
+      lines(x=c((m+mids[1]),(m+mids[4])), y=rep(yl,2), lwd=2);
+    }
+    all.pairwise.ts[[same.pair.lbls[m]]]["UNR", "MZ"] <- paste0(get.format(ttest$statistic,2), " (", get.format(ttest$p.value), ")", get.stars.b(ttest$p.value,6));
+    
+    ttest <- YuenTTest(x=dz.tbl[,col.lbls[m]], y=un.tbl[,col.lbls[m]], paired=FALSE, alternative="two.sided", trim=do.trim);    # DZ un
+    strs <- get.stars.b(ttest$p.value, 6);   # strs <- get.stars(ttest$p.value);
+    if (strs != "") {
+      if (comm.id == "FrontoParietal") { yl <- 0.34; } else { yl <- 0.67; }
+      lines(x=c((m+mids[2]),(m+mids[4])), y=rep(yl,2), lwd=2);
+    }
+    all.pairwise.ts[[same.pair.lbls[m]]]["UNR", "DZ"] <- paste0(get.format(ttest$statistic,2), " (", get.format(ttest$p.value), ")", get.stars.b(ttest$p.value,6));
+    
+    ttest <- YuenTTest(x=sib.tbl[,col.lbls[m]], y=un.tbl[,col.lbls[m]], paired=FALSE, alternative="two.sided", trim=do.trim);    # SIB un
+    strs <- get.stars.b(ttest$p.value, 6);   # strs <- get.stars(ttest$p.value);
+    if (strs != "") {
+      if (comm.id == "FrontoParietal") { yl <- 0.33; } else { yl <- 0.65; }
+      lines(x=c((m+mids[3]),(m+mids[4])), y=rep(yl,2), lwd=2);
+    }
+    all.pairwise.ts[[same.pair.lbls[m]]]["UNR", "SIB"] <- paste0(get.format(ttest$statistic,2), " (", get.format(ttest$p.value), ")", get.stars.b(ttest$p.value,6));
+    
+    ttest <- YuenTTest(x=mz.tbl[,col.lbls[m]], y=sib.tbl[,col.lbls[m]], paired=FALSE, alternative="two.sided", trim=do.trim);    # MZ SIB
+    strs <- get.stars.b(ttest$p.value, 6);   # strs <- get.stars(ttest$p.value);
+    if (strs != "") {
+      if (comm.id == "FrontoParietal") { yl <- 0.35; } else { yl <- 0.69; }
+      lines(x=c((m+mids[1]),(m+mids[3])), y=rep(yl,2), lwd=2);
+    }
+    all.pairwise.ts[[same.pair.lbls[m]]]["SIB", "MZ"] <- paste0(get.format(ttest$statistic,2), " (", get.format(ttest$p.value), ")", get.stars.b(ttest$p.value,6));
+    
+    ttest <- YuenTTest(x=dz.tbl[,col.lbls[m]], y=sib.tbl[,col.lbls[m]], paired=FALSE, alternative="two.sided", trim=do.trim);    # DZ SIB
+    strs <- get.stars.b(ttest$p.value, 6);   # strs <- get.stars(ttest$p.value);
+    if (strs != "") {
+      if (comm.id == "FrontoParietal") { yl <- 0.34; } else { yl <- 0.67; }
+      lines(x=c((m+mids[2]),(m+mids[3])), y=rep(yl,2), lwd=2);
+    }
+    all.pairwise.ts[[same.pair.lbls[m]]]["SIB", "DZ"] <- paste0(get.format(ttest$statistic,2), " (", get.format(ttest$p.value), ")", get.stars.b(ttest$p.value,6));
+  }
+  legend(x='top', legend=c("MZ", "DZ", "SIB", "UNR"), fill=match.cols, horiz=TRUE, cex=0.8, box.col='white', bg='white'); 
+  box();
+  
+  if (comm.id == "FrontoParietal") {  # save the means so can print both below
+    FP.tbl <- mean.tbl; 
+    FP.list <- all.pairwise.ts;
+  } 
+}
+
+@
+
+\vspace{0.9 cm}
+\noindent Mean (SEM) of each stimulus type separately, as plotted above and Figure 7. Both are robust statistics, trimmed at \Sexpr{do.trim}.   \par
+\vspace{0.1 cm}
+<<code1a, cache=TRUE, echo=FALSE, results='asis'>>=
+
+for.xtbl <- data.frame("FrontoParietal", long.pair.lbls, FP.tbl);
+colnames(for.xtbl) <- c("Community", "Condition", sub.lbls);
+
+tmp <- data.frame("Visual", long.pair.lbls, mean.tbl);
+colnames(tmp) <- c("Community", "Condition", sub.lbls);
+
+for.xtbl <- rbind(for.xtbl, tmp);   # put FrontoParietal and Visual together
+print(xtable(for.xtbl), include.rownames=FALSE);
+
+
+@
+
+
+\newpage
+\noindent t and p (in parentheses) values from two-sided t-tests of the difference between the (z-transformed) correlations in each subject group. Asterisks and shading mark differences with p \textless .008, Bonferroni-corrected threshold for p \textless .05 with 6 comparisons.   \par
+\vspace{0.1 cm}
+
+\begin{table}[!htb]
+\begin{minipage}{.5\linewidth}
+\noindent \textbf{FrontoParietal, 0-back Face} \par
+<<code1b, cache=TRUE, echo=FALSE, results='asis'>>=
+
+print(xtable(FP.list[[same.pair.lbls[1]]]), scalebox=0.9);
+
+@
+\end{minipage}
+\begin{minipage}{.5\linewidth}
+\noindent \textbf{FrontoParietal, 2-back Face} \par
+<<code1b2, cache=TRUE, echo=FALSE, results='asis'>>=
+
+print(xtable(FP.list[[same.pair.lbls[2]]]), scalebox=0.9);
+
+@
+\end{minipage}\end{table}
+
+
+\begin{table}[!htb]
+\begin{minipage}{.5\linewidth}
+\noindent \textbf{FrontoParietal, 0-back Place} \par
+<<code1b3, cache=TRUE, echo=FALSE, results='asis'>>=
+
+print(xtable(FP.list[[same.pair.lbls[3]]]), scalebox=0.9);
+
+@
+\end{minipage}
+\begin{minipage}{.5\linewidth}
+\noindent \textbf{FrontoParietal, 2-back Place} \par
+<<code1b4, cache=TRUE, echo=FALSE, results='asis'>>=
+
+print(xtable(FP.list[[same.pair.lbls[4]]]), scalebox=0.9);
+
+@
+\end{minipage}\end{table}
+
+
+\begin{table}[!htb]
+\begin{minipage}{.5\linewidth}
+\noindent \textbf{Visual, 0-back Face} \par
+<<code1b5, cache=TRUE, echo=FALSE, results='asis'>>=
+
+print(xtable(all.pairwise.ts[[same.pair.lbls[1]]]), scalebox=0.8);
+
+@
+\end{minipage}
+\begin{minipage}{.5\linewidth}
+\noindent \textbf{Visual, 2-back Face} \par
+<<code1b6, cache=TRUE, echo=FALSE, results='asis'>>=
+
+print(xtable(all.pairwise.ts[[same.pair.lbls[2]]]), scalebox=0.8);
+
+@
+\end{minipage}\end{table}
+
+
+\begin{table}[!htb]
+\begin{minipage}{.5\linewidth}
+\noindent \textbf{Visual, 0-back Place} \par
+<<code1b7, cache=TRUE, echo=FALSE, results='asis'>>=
+
+print(xtable(all.pairwise.ts[[same.pair.lbls[3]]]), scalebox=0.8);
+
+@
+\end{minipage}
+\begin{minipage}{.5\linewidth}
+\noindent \textbf{Visual, 2-back Place} \par
+<<code1b8, cache=TRUE, echo=FALSE, results='asis'>>=
+
+print(xtable(all.pairwise.ts[[same.pair.lbls[4]]]), scalebox=0.8);
+
+@
+\end{minipage}\end{table}
+
+
+\newpage
+\begin{landscape}
+
+\noindent Similarity on matching stimulus types, full dataset. The paired participants are arrayed along the x-axis in \textbf{arbitrary order} within each type (MZ, DZ, SIB, UNR), with their four similarities (0-back Face, 2-back Face, 0-back Place, 2-back Place) shown in each column. Note the higher overall similarity in Visual, with Place (black symbols) more similar than Face (blue symbols); in FrontoParietal 2-back tends to be higher. In both FrontoParietal and Visual the variability of similarities in each pair of people is approximately the same (e.g., SIB pairs are not noticably more variable than DZ pairs), with the band of similarities decreasing from left to right (UNR pairs tend to be less similar than MZ pairs).  \par
+\vspace{0.2 cm} 
+<<code2, cache=TRUE, echo=FALSE, dev='pdf', fig.height=5, fig.width=9.8, fig.align='center'>>=
+par(mgp=c(1.1, 0.2, 0), tcl=-0.3);
+# mar: c(bottom, left, top, right) gives the number of lines of margin on the four sides of the plot. Default is c(5, 4, 4, 2) + 0.1.
+
+yLim <- c(-0.2,0.75);
+cx2 <- 0.9;
+num.MZ <- length(MZ.1s);
+num.DZ <- length(DZ.1s);
+num.SIB <- length(SIB.1s);
+num.UNR <- length(UNR.1s);
+num.tot <- num.MZ + num.DZ + num.SIB + num.UNR;
+xLim <- c(-1,num.tot+5);
+
+pchs <- c("0","2","0","2");  #c(4,3,1,1);
+match.cols <- c("blue", "blue", "black", "black");
+#col.lbls <- c("X0bkFace.0bkFace", "X2bkFace.2bkFace", "X0bkPlace.0bkPlace", "X2bkPlace.2bkPlace");    # same order, but as appears in column names
+
+# correlations of the people with each other, left and right averaged; row.names give sub.1s only
+do.dots <- function(sub.1s, tbl, lbl) {   # sub.1s <- DZ.1s; tbl <- dz.tbl; lbl <- "DZ";
+  if (length(sub.1s) != nrow(tbl)) { stop("length(sub.1s) != nrow(tbl)"); }
+  for (i in 1:(length(sub.1s))) {    # i <- 1;
+    for (p in 1:length(col.lbls)) {    # p <- 1;
+      if (lbl == "MZ") { plus <- 0; }
+      if (lbl == "DZ") { plus <- num.MZ + 1; }
+      if (lbl == "SIB") { plus <- num.MZ + num.DZ + 2; }
+      if (lbl == "UNR") { plus <- num.MZ + num.DZ + num.SIB + 3; }
+      points(x=i+plus, y=tbl[i,col.lbls[p]], col=match.cols[p], pch=pchs[p], cex=0.5);
+    }
+  }
+}
+
+
+make.plot <- function(cluster.id) {
+  plot(x=0, y=0, xlim=xLim, ylim=yLim, xaxs='i', xaxt='n', col='white', xlab="", ylab="", main="", cex.axis=0.8);
+  for (i in c(-0.2, 0.2, 0.4, 0.6)) { lines(x=c(-1,400), y=rep(i,2), col='grey', lty='dashed'); }
+  lines(x=c(-1,400), y=c(0,0), col='grey');
+  
+  lines(x=rep(num.MZ+1, 2), y=c(-1,1));
+  lines(x=rep(num.MZ+num.DZ+2, 2), y=c(-1,1));
+  lines(x=rep(num.MZ+num.DZ+num.SIB+3, 2), y=c(-1,0.63));
+  mtext("Similarity (Pearson correlation)", side=2, line=1.2, cex=0.9);
+  mtext(cluster.id, side=2, line=2, cex=cx2);
+  if (cluster.id == "Visual") {
+    mtext("MZ Twin Pairs", side=1, at=num.MZ/2, cex=0.9, line=0)
+    mtext("DZ Twin Pairs", side=1, at=num.MZ+num.DZ/2+1, cex=0.9, line=0)
+    mtext("Non-Twin Siblings (SIB)", side=1, at=num.MZ+num.DZ+num.SIB/2+2, cex=0.9, line=0)
+    mtext("Paired Unrelated People (UNR)", side=1, at=num.MZ+num.DZ+num.SIB+num.UNR/2+3, cex=0.9, line=0);
+  }
+  
+  for (pair.type in sub.lbls) {
+    fname <- paste0(in.path, "pairwiseCorrelations/", pair.type, "_", cluster.id, "_pairPairwiseDistanceRSA.txt");   # code7
+    if (file.exists(fname)) { in.tbl <- read.table(fname, stringsAsFactors=FALSE); } else { stop(paste("missing:", fname)); }
+    
+    do.dots(get.ids(paste0(pair.type,".1s")), in.tbl, pair.type); 
+  }
+  
+  # text is same order as same.pair.lbls & long.pair.lbls: [1] "0-back,Face"  "2-back,Face"  "0-back,Place" "2-back,Place"
+  legend(x='topright', legend=long.pair.lbls, col=match.cols, pch=pchs, horiz=TRUE, cex=0.7, bg='white', bty='n'); 
+  box();
+}
+
+
+par(fig=c(0,1,0.52,1), mar=c(0.1, 3, 0.5, 0.75))
+make.plot("FrontoParietal");
+par(fig=c(0,1,0,0.52), mar=c(2, 3, 0.1, 0.75), new=TRUE)
+make.plot("Visual");
+par(new=FALSE);  # reset plotting
+
+# mar: c(bottom, left, top, right) gives the number of lines of margin on the four sides of the plot. Default is c(5, 4, 4, 2) + 0.1.
+
+@
+
+
+\newpage
+\noindent Similarity on matching stimulus types, full dataset. The paired participants are arrayed along the x-axis \textbf{by decreasing d'} within each type (MZ, DZ, SIB, UNR). Regression against rank ordering, not actual d'.  \par
+\vspace{0.2 cm} 
+<<code2g, cache=TRUE, echo=FALSE, dev='pdf', fig.height=5, fig.width=9.8, fig.align='center'>>=
+par(mgp=c(1.1, 0.2, 0), tcl=-0.3);
+# mar: c(bottom, left, top, right) gives the number of lines of margin on the four sides of the plot. Default is c(5, 4, 4, 2) + 0.1.
+
+# to simplify plotting, I manually ran through the code and here are the numbers of missings
+num.MZ.na <- 10; num.DZ.na <- 3; num.SIB.na <- 2; num.UNR.na <- 3;
+
+num.tot <- num.MZ-num.MZ.na + num.DZ-num.DZ.na + num.SIB-num.SIB.na + num.UNR-num.UNR.na;
+xLim <- c(-1,num.tot+5);
+yLim <- c(-0.3,0.75);
+
+pchs <- c("0","2","0","2");  #c(4,3,1,1);
+match.cols <- c("blue", "darkblue", "salmon", "darkred");
+#col.lbls <- c("X0bkFace.0bkFace", "X2bkFace.2bkFace", "X0bkPlace.0bkPlace", "X2bkPlace.2bkPlace");    # same order, but as appears in column names
+
+txt.offs.x <- c(-40, 0, -40, 0);
+txt.offs.y <- c(0, 0, 0.05, 0.05);
+
+do.dots <- function(sub.1s, sub.2s, do.comm, pair.type) {   
+  # do.comm <- "FrontoParietal"; pair.type <- "MZ"; sub.1s <- MZ.1s; sub.2s <- MZ.2s;
+  fname <- paste0(in.path, "pairwiseCorrelations/", pair.type, "_", do.comm, "_pairPairwiseDistanceRSA.txt");   # code7
+  if (file.exists(fname)) { in.tbl <- read.table(fname, stringsAsFactors=FALSE); } else { stop(paste("missing:", fname)); }
+  
+  # mean d'
+  twin1s <- rep(NA, length(sub.1s)); 
+  twin2s <- rep(NA, length(sub.2s)); 
+  for (i in 1:length(sub.1s)) {   # i <- 1;
+    # behavioral measure for each twin 
+    fname1 <- paste0(in.path, "output_behavioral/", sub.1s[i], "_WMbehaviorSummary_bothruns.txt");
+    fname2 <- paste0(in.path, "output_behavioral/", sub.2s[i], "_WMbehaviorSummary_bothruns.txt");
+    if (file.exists(fname1) & file.exists(fname2)) {
+      tmp <- read.table(fname1, stringsAsFactors=FALSE);
+      ind <- which(tmp$stat.name == "dprime" & tmp$load.type == "all" & tmp$cat.type == "Face&Place" & is.na(tmp$trial.type));
+      if (length(ind) != 1) { stop("length(ind) != 1"); } else { twin1s[i] <- tmp$stat.value[ind]; }
+      tmp <- read.table(fname2, stringsAsFactors=FALSE);
+      ind <- which(tmp$stat.name == "dprime" & tmp$load.type == "all" & tmp$cat.type == "Face&Place" & is.na(tmp$trial.type));
+      if (length(ind) != 1) { stop("length(ind) != 1"); } else { twin2s[i] <- tmp$stat.value[ind]; }
+    }
+  }
+  mean.ds <- (twin1s+twin2s)/2;   # mean.ds <- abs(twin1s-twin2s)
+  order.ds <- order(mean.ds, decreasing=TRUE, na.last=TRUE);
+  num.na <- length(which(is.na(mean.ds)));  # last num.na people shouldn't be in the regression
+  order.ds <- order.ds[1:(length(order.ds)-num.na)];
+  
+  # find x-axis location for this subject group
+  if (pair.type == "MZ") { 
+    plus <- 0; 
+    txt.x <- num.MZ - num.MZ.na + 1;  
+  }
+  if (pair.type == "DZ") { 
+    plus <- num.MZ-num.MZ.na + 1; 
+    txt.x <- num.MZ-num.MZ.na + num.DZ-num.DZ.na + 2; 
+  }
+  if (pair.type == "SIB") { 
+    plus <- num.MZ-num.MZ.na + num.DZ-num.DZ.na + 2;  
+    txt.x <- num.MZ-num.MZ.na + num.DZ-num.DZ.na + num.SIB-num.SIB.na + 3; 
+  }
+  if (pair.type == "UNR") { 
+    plus <- num.MZ-num.MZ.na + num.DZ-num.DZ.na + num.SIB-num.SIB.na + 3; 
+    txt.x <- num.MZ-num.MZ.na + num.DZ-num.DZ.na + num.SIB-num.SIB.na + num.UNR-num.UNR.na + 4; 
+  }
+  
+  # get and plot points & regression lines for each matched-stimulus set
+  for (cid in 1:length(col.lbls)) {    # cid <- 1;
+    vals <- in.tbl[,col.lbls[cid]];    # correlation for this column (matched-stimulus pair)
+    if (length(sub.1s) != length(vals)) { stop("length mismatch"); }
+    
+    for (i in 1:length(order.ds)) {    # i <- 1;   # plot all not NA d' pairs
+      points(x=i+plus, y=vals[order.ds[i]], col=match.cols[cid], pch=pchs[cid], cex=0.5);
+    }
+    ii <- (1:length(order.ds))+plus
+    lmObj <- lm(vals[order.ds] ~ ii)
+    fstat <- summary(lmObj)$fstatistic;
+    pval <- pf(fstat[1], fstat[2], fstat[3], lower.tail=FALSE);
+    txt <- paste0(same.pair.lbls[cid], ": r=", get.format(cor(ii, vals[order.ds]),2), " p=", get.format(pval,3));
+    text(x=txt.x+3+txt.offs.x[cid], y=yLim[1]+txt.offs.y[cid], labels=txt, pos=2, cex=0.6, col=match.cols[cid]);
+    xs <- range(ii)
+    ys <- predict(lmObj, newdata = data.frame(ii = xs))
+    lines(xs, ys, col=match.cols[cid]);  # so truncates line to subject group range
+  }
+}
+
+
+make.plot <- function(cluster.id) {   # cluster.id <- "FrontoParietal";
+  plot(x=0, y=0, xlim=xLim, ylim=yLim, xaxs='i', xaxt='n', col='white', xlab="", ylab="", main="", cex.axis=0.8);
+  for (i in c(-0.2, 0.2, 0.4, 0.6)) { lines(x=c(-1,400), y=rep(i,2), col='grey', lty='dashed'); }
+  lines(x=c(-1,400), y=c(0,0), col='grey');
+  
+  lines(x=rep(num.MZ-num.MZ.na+1, 2), y=c(-1,1));
+  lines(x=rep(num.MZ-num.MZ.na+num.DZ-num.DZ.na+2, 2), y=c(-1,1));
+  lines(x=rep(num.MZ-num.MZ.na+num.DZ-num.DZ.na+num.SIB-num.SIB.na+3, 2), y=c(-1,0.63));
+  mtext("Similarity (Pearson correlation)", side=2, line=1.1, cex=0.9);
+  mtext(cluster.id, side=2, line=2.1, cex=1.2);
+  if (cluster.id == "Visual") {
+    mtext("MZ Twin Pairs", side=1, at=(num.MZ-num.MZ.na)/2, cex=0.9, line=0)
+    mtext("DZ Twin Pairs", side=1, at=num.MZ-num.MZ.na+(num.DZ-num.DZ.na)/2+1, cex=0.9, line=0)
+    mtext("Non-Twin Siblings (SIB)", side=1, at=num.MZ-num.MZ.na+num.DZ-num.DZ.na+(num.SIB-num.SIB.na)/2+2, cex=0.9, line=0)
+    mtext("Paired Unrelated People (UNR)", side=1, 
+          at=num.MZ-num.MZ.na+num.DZ-num.DZ.na+num.SIB-num.SIB.na+(num.UNR-num.UNR.na)/2+3, cex=0.9, line=0);
+  }
+    
+  do.dots(MZ.1s, MZ.2s, cluster.id, "MZ"); 
+  do.dots(DZ.1s, DZ.2s, cluster.id, "DZ");
+  do.dots(SIB.1s, SIB.2s, cluster.id, "SIB");
+  do.dots(UNR.1s, UNR.2s, cluster.id, "UNR");
+  
+  if (cluster.id == "FrontoParietal") { # text is same order as same.pair.lbls & long.pair.lbls: [1] "0-back,Face"  "2-back,Face"  "0-back,Place" "2-back,Place"
+    legend(x='topright', legend=long.pair.lbls, col=match.cols, pch=pchs, horiz=TRUE, cex=0.8, bg='white', bty='n'); 
+  }
+  box();
+}
+
+
+par(fig=c(0,1,0.52,1), mar=c(0.1, 3, 0.5, 0.75))
+make.plot("FrontoParietal");
+par(fig=c(0,1,0,0.52), mar=c(2, 3, 0.1, 0.75), new=TRUE)
+make.plot("Visual");
+par(new=FALSE);  # reset plotting
+
+@
+
+\end{landscape}
+
+\newpage
+\section*{S3.3 Similarity of matched conditions: Linear mixed models}
+\noindent Unlike the previous pairwise t-tests, these have all four pairs (0-back face to 0-back face, etc.) analyzed together. Beginning with a model of the entire dataset, there's a 3-way interaction between community.id, pair.group, and condition.id, so need to investigate subsets.   \par
+\vspace{0.2 cm} 
+\noindent In Visual: All pair groups except SIB and DZ are significantly different, in the expected directions (e.g., MZ more similar than UNR). The same-category contrasts (2,P-0,P; 2,F-0,F) are not significantly different, but all those that mix categories are, in the direction of Place more similar than Face. \par
+\vspace{0.2 cm} 
+\noindent In FrontoParietal: Within each pair.group (MZ, DZ, SIB, UNR), all the contrasts mixing 0-back and 2-back are significant, with 2-back more similar than 0-back. Further, the 2,P-2,F contrast is not significant in any pair.group, and 0,P-0,F only significant (0,P higher) in MZ. Consistent with the pairwise tests, the SIB-DZ contrast (only) is always highly non-significant. The other pairwise contrasts are all significantly different in 2,P and 2,F, and some in 0,F and 0,P. \par
+<<code3a, cache=TRUE, echo=FALSE>>=
+# rearrange into structure needed for mixed models
+
+# col.lbls <- c("X0bkFace.0bkFace", "X2bkFace.2bkFace", "X0bkPlace.0bkPlace", "X2bkPlace.2bkPlace");    # same order, but as appears in column names
+# same.pair.lbls <- c("0,F", "2,F", "0,P", "2,P");  # shorter version for the output files
+
+mm.tbl <- data.frame(array(NA, c(2*4*(length(MZ.1s)+length(DZ.1s)+length(SIB.1s)+length(UNR.1s)), 5)));
+colnames(mm.tbl) <- c("pair.id", "pair.group", "community.id", "condition.id", "similarity");
+ctr <- 1;
+for (comm.name in c("FrontoParietal", "Visual")) {    
+  for (pctr in 1:length(sub.lbls)) {   # comm.name <- "FrontoParietal"; pctr <- 1;
+    fname <- paste0(in.path, "pairwiseCorrelations/", sub.lbls[pctr], "_", comm.name, "_pairPairwiseDistanceRSA.txt");   # code7
+    if (file.exists(fname)) { in.tbl <- read.table(fname, stringsAsFactors=FALSE); } else { stop(paste("missing:", fname)); }
+    
+    for (i in 1:nrow(in.tbl)) {  
+      for (j in 1:length(same.pair.lbls)) {   # i <- 1; j <- 1;
+        mm.tbl$pair.id[ctr] <- rownames(in.tbl)[i];
+        mm.tbl$pair.group[ctr] <- sub.lbls[pctr];
+        mm.tbl$community.id[ctr] <- comm.name;
+        mm.tbl$condition.id[ctr] <- same.pair.lbls[j];
+        mm.tbl$similarity[ctr] <- in.tbl[i,col.lbls[j]];
+        ctr <- ctr + 1;
+      }
+    }
+  }
+}
+
+mm.tbl$pair.id <- factor(mm.tbl$pair.id);
+mm.tbl$pair.group <- factor(mm.tbl$pair.group);
+mm.tbl$community.id <- factor(mm.tbl$community.id);
+mm.tbl$condition.id <- factor(mm.tbl$condition.id);
+
+@
+
+<<code3b, cache=TRUE, echo=TRUE, size='small', warning=FALSE>>=
+
+head(mm.tbl);  # show dataframe structure
+
+# everything in the model: three-way interaction
+anova(lme(fixed=similarity~pair.group*community.id*condition.id, 
+          random=list(pair.id=~1, community.id=~1), data=mm.tbl)); 
+
+@
+
+\vspace{0.2 cm} 
+\noindent Visual only. \par
+<<code3c, cache=TRUE, echo=TRUE, size='small', warning=FALSE>>=
+
+stbl <- subset(mm.tbl, mm.tbl$community.id == "Visual");   # visual only
+lme.out <- lme(fixed=similarity~pair.group*condition.id, random=~1|pair.id, data=stbl); 
+anova(lme.out);   # no interaction but significant main effects, so do contrasts:
+
+summary(glht(lme.out, mcp(pair.group="Tukey")));   # Visual: all but SIB-DZ significantly different
+
+summary(glht(lme.out, mcp(condition.id="Tukey")));  # Visual: same-category contrasts not significantly different
+
+@
+
+\vspace{0.2 cm} 
+\noindent FrontoParietal only. \par
+<<code3d, cache=TRUE, echo=TRUE, size='small', warning=FALSE>>=
+
+stbl <- subset(mm.tbl, mm.tbl$community.id == "FrontoParietal");    # FrontoParietal only
+anova(lme(fixed=similarity~pair.group*condition.id, random=~1|pair.id, data=stbl));   # significant interaction
+
+#################################################################################################################
+# Frontoparietal, MZ only
+stbl <- subset(mm.tbl, mm.tbl$community.id == "FrontoParietal" & mm.tbl$pair.group == "MZ");
+lme.out <- lme(fixed=similarity~condition.id, random=~1|pair.id, data=stbl); 
+#anova(lme.out);
+summary(glht(lme.out, mcp(condition.id="Tukey")));
+
+
+#################################################################################################################
+# FrontoParietal, DZ only
+stbl <- subset(mm.tbl, mm.tbl$community.id == "FrontoParietal" & mm.tbl$pair.group == "DZ");
+lme.out <- lme(fixed=similarity~condition.id, random=~1|pair.id, data=stbl); 
+#anova(lme.out);
+summary(glht(lme.out, mcp(condition.id="Tukey")));
+
+
+#################################################################################################################
+# FrontoParietal, SIB only
+stbl <- subset(mm.tbl, mm.tbl$community.id == "FrontoParietal" & mm.tbl$pair.group == "SIB");
+lme.out <- lme(fixed=similarity~condition.id, random=~1|pair.id, data=stbl); 
+#anova(lme.out);
+summary(glht(lme.out, mcp(condition.id="Tukey")));
+
+
+#################################################################################################################
+# FrontoParietal, UNR only
+stbl <- subset(mm.tbl, mm.tbl$community.id == "FrontoParietal" & mm.tbl$pair.group == "UNR");
+lme.out <- lme(fixed=similarity~condition.id, random=~1|pair.id, data=stbl); 
+anova(lme.out);
+summary(glht(lme.out, mcp(condition.id="Tukey")));
+
+
+#################################################################################################################
+# FrontoParietal, 0,F only
+stbl <- subset(mm.tbl, mm.tbl$community.id == "FrontoParietal" & mm.tbl$condition.id == "0,F");
+lme.out <- lme(fixed=similarity~pair.group, random=~1|pair.id, data=stbl); 
+#anova(lme.out);
+summary(glht(lme.out, mcp(pair.group="Tukey")));
+
+
+#################################################################################################################
+# FrontoParietal, 2,F only
+stbl <- subset(mm.tbl, mm.tbl$community.id == "FrontoParietal" & mm.tbl$condition.id == "2,F");
+lme.out <- lme(fixed=similarity~pair.group, random=~1|pair.id, data=stbl); 
+#anova(lme.out);
+summary(glht(lme.out, mcp(pair.group="Tukey")));
+
+
+#################################################################################################################
+# FrontoParietal, 0,P only
+stbl <- subset(mm.tbl, mm.tbl$community.id == "FrontoParietal" & mm.tbl$condition.id == "0,P");
+lme.out <- lme(fixed=similarity~pair.group, random=~1|pair.id, data=stbl); 
+anova(lme.out);
+summary(glht(lme.out, mcp(pair.group="Tukey")));
+
+
+#################################################################################################################
+# FrontoParietal, 2,P only
+stbl <- subset(mm.tbl, mm.tbl$community.id == "FrontoParietal" & mm.tbl$condition.id == "2,P");
+lme.out <- lme(fixed=similarity~pair.group, random=~1|pair.id, data=stbl); 
+#anova(lme.out);
+summary(glht(lme.out, mcp(pair.group="Tukey")));
+
+@
+
+
+\vspace{0.5 cm} 
+\section*{S3.4 Similarity of matched conditions: ACE modeling}
+\noindent For MZ and DZ. \par
+\vspace{0.1 cm} 
+<<code4a, cache=TRUE, echo=FALSE, results='asis'>>=
+# ACE modeling. Code adapted by Jo Etzel from that written by Caitlin Carey.
+
+boot <- 5000;    # how many bootstrapping iterations
+lci <- floor(.025*boot);    # lower confidence interval
+uci <- ceiling(.975*boot);  # upper confidence interval
+
+get.falconers <- function(mz, dz) {    
+  a=2*(mz-dz);
+  c=2*dz-mz;
+  e=1-mz;
+  
+  return(c(a,c,e));
+}
+
+
+get.heritability <- function(do.cond, do.comm, DZ.only=TRUE) {     # do.cond <- "0,F";  do.comm <- "FrontoParietal"; DZ.only <- FALSE;
+  MZ.vals <- mm.tbl$similarity[which(mm.tbl$pair.group == "MZ" & mm.tbl$community.id == do.comm & mm.tbl$condition.id == do.cond)]
+  if (length(MZ.vals) != length(MZ.1s)) { stop("length(MZ.vals) != length(MZ.1s)"); }
+  if (DZ.only == TRUE) {
+    DZ.vals <- mm.tbl$similarity[which(mm.tbl$pair.group == "DZ" & mm.tbl$community.id == do.comm & mm.tbl$condition.id == do.cond)]
+    if (length(DZ.vals) != length(DZ.1s)) { stop("length(DZ.vals) != length(DZ.1s)"); }
+  } else {
+    DZ.vals <- c(mm.tbl$similarity[which(mm.tbl$pair.group == "DZ" & mm.tbl$community.id == do.comm & mm.tbl$condition.id == do.cond)],
+                 mm.tbl$similarity[which(mm.tbl$pair.group == "SIB" & mm.tbl$community.id == do.comm & mm.tbl$condition.id == do.cond)]);
+    if (length(DZ.vals) != length(DZ.1s)+length(SIB.1s)) { stop("length(DZ.vals) != length(DZ.1s)+length(SIB.1s)"); }
+  }
+  
+  MZ.vals <- get.FTrz(MZ.vals);
+  DZ.vals <- get.FTrz(DZ.vals);
+  
+  # confirm mean(DZ) isn't less than half mean(MZ); if is, need a different calculation
+  if (mean(DZ.vals) < (0.5*mean(MZ.vals))) { stop("mean(DZ.vals) < (0.5*mean(MZ.vals))"); }
+  
+  ace.vec <- get.falconers(get.FTzr(mean(MZ.vals)), get.FTzr(mean(DZ.vals)));   # calculating Falconer's using the across-subjects (just MZ or just DZ) means
+  
+  # do bootstrapping for confidence interval for ace.vec.  could set.seed for reproducibility
+  ace.tbl <- array(NA, c(boot, length(ace.vec)));
+  for (i in 1:boot){    # i <- 1;
+    idsMZ = sample((1:length(MZ.vals)), replace=TRUE);    # who to include in this bootstrap interation?
+    idsDZ = sample((1:length(DZ.vals)), replace=TRUE);
+    
+    MZ.vals.boot <- MZ.vals[idsMZ];
+    DZ.vals.boot <- DZ.vals[idsDZ];
+    ace.tbl[i,] <- get.falconers(get.FTzr(mean(MZ.vals.boot)), get.FTzr(mean(DZ.vals.boot)));
+  }
+  
+  tmp.vec <- sort(ace.tbl[,1]);
+  if (tmp.vec[lci] > 0 & ace.vec[1] < tmp.vec[uci]) { strs <- "*"; } else { strs <- ""; }
+  h2 <- paste0(round(ace.vec[1],2), " [", round(tmp.vec[lci],2), ",", round(tmp.vec[uci],2), "]", strs);
+  
+  tmp.vec <- sort(ace.tbl[,2]);
+  if (tmp.vec[lci] > 0 & ace.vec[2] < tmp.vec[uci]) { strs <- "*"; } else { strs <- ""; }
+  c2 <- paste0(round(ace.vec[2],2), " [", round(tmp.vec[lci],2), ",", round(tmp.vec[uci],2), "]", strs);
+  
+  tmp.vec <- sort(ace.tbl[,3]);
+  if (tmp.vec[lci] > 0 & ace.vec[3] < tmp.vec[uci]) { strs <- "*"; } else { strs <- ""; }
+  e2 <- paste0(round(ace.vec[3],2), " [", round(tmp.vec[lci],2), ",", round(tmp.vec[uci],2), "]", strs);
+  return(c(h2, c2, e2));
+}
+ 
+#same.pair.lbls <- c("0,F", "2,F", "0,P", "2,P");
+# long.pair.lbls  [1] "0-back,Face"  "2-back,Face"  "0-back,Place" "2-back,Place"
+
+print.tbl <- data.frame(array(NA, c(8,5)));
+colnames(print.tbl) <- c("Community", "Condition", "h2", "c2", "e2");
+ctr <- 1;
+for (cid in 1:length(community.ids)) {
+  for (pid in 1:length(same.pair.lbls)) {   # cid <- 1; pid <- 1;
+    tmp <- get.heritability(same.pair.lbls[pid], community.ids[cid], TRUE);
+    print.tbl$Community[ctr] <- community.ids[cid]
+    print.tbl$Condition[ctr] <- long.pair.lbls[pid];
+    print.tbl$h2[ctr] <- tmp[1];
+    print.tbl$c2[ctr] <- tmp[2];
+    print.tbl$e2[ctr] <- tmp[3];
+    ctr <- ctr + 1;
+  }
+}
+#print(print.tbl);
+print(xtable(print.tbl), include.rownames=FALSE);
+
+@
+
+\vspace{0.5 cm} 
+\noindent For MZ and DZ+SIB. \par
+\vspace{0.1 cm} 
+<<code4b, cache=TRUE, echo=FALSE, results='asis'>>=
+# ACE modeling. Code adapted by Jo Etzel from that written by Caitlin Carey.
+
+print.tbl <- data.frame(array(NA, c(8,5)));
+colnames(print.tbl) <- c("Community", "Condition", "h2", "c2", "e2");
+ctr <- 1;
+for (cid in 1:length(community.ids)) {
+  for (pid in 1:length(same.pair.lbls)) {   # cid <- 1; pid <- 1;
+    tmp <- get.heritability(same.pair.lbls[pid], community.ids[cid], FALSE);
+    print.tbl$Community[ctr] <- community.ids[cid]
+    print.tbl$Condition[ctr] <- long.pair.lbls[pid];
+    print.tbl$h2[ctr] <- tmp[1];
+    print.tbl$c2[ctr] <- tmp[2];
+    print.tbl$e2[ctr] <- tmp[3];
+    ctr <- ctr + 1;
+  }
+}
+
+print(xtable(print.tbl), include.rownames=FALSE);   # print(print.tbl);
+
+
+@
+
+
+\newpage
+\section*{S3.5 Comparison of variance components with other studies}
+\vspace{0.2 cm} 
+
+<<code5, cache=TRUE, echo=FALSE, results='asis'>>=
+
+print.tbl <- array(NA, c(8,9));
+colnames(print.tbl) <- c("Reference", "Mean Age", "MZ__ similarity (Npairs)", "DZ___ similarity (Npairs)", "UNR similarity (Npairs)", "a2", 
+                         "c2", "e2", "Reference table or figure");
+
+print.tbl[1,] <- c("Etzel FPN", "22-36 Avg 29.2", ".13-.25 (105)",	".11-.19 (78+99 SIB)", ".08-.13 (100)", "5-15%**", "5-11%",	"75-87%", 
+                   "Figure 7, S3.2, S3.4");
+print.tbl[2,] <- c("Etzel Visual", "22-36 Avg 29.2", ".51-.60 (105)", ".46-.55 (78+99 SIB)", ".40-.55 (100)", "9-11%**", 
+                   "40-49%**", "41-49%**", "Figure 7, S3.2, S3.4");
+print.tbl[3,] <- c("Polk (2007)", "18-29", "~.73 (13)", "~.63 (11)", "~.62 (22)", "20%*", "53%*", "27%*", "Figure 2 (faces)");
+print.tbl[4,] <- c("Pinel (2015)", "Avg 21.7", "~.40 (16)", "~.25 (13)", "~.27#", "30%*", "10%*", "60%*", "Figure 6 (faces)");
+print.tbl[5,] <- c("Pinel (2015)", "Avg 21.7", ".489 (16)", ".202 (13)", "-", "55%** [0-82%]", "0%** [0-47%]", 
+                   "45%** [18-100%]", "Tables 3, 4 (OFAface, L.I.)");
+print.tbl[6,] <- c("Blokland (2008)", "21-27", ".19-.42 (29)", "-.24-.20 (31)", "-", "11-36.5%**", "0-19.3%", "63.5-81.4%", "Table 2");
+print.tbl[7,] <- c("Blokland (2011)", "20-30", "Fig2b (75)", "Fig2b (66)", "-", "33%** (average across regions)", "-", "67%", "Figure 2b, 3");
+print.tbl[8,] <- c("Blokland (2017)", "16-30", ".09-.54 (110)", "-.05-.33 (138)", "-", "41%** (average across regions)", "-", "59%", "Supplement Table 1");
+                   
+
+print.xtbl <- xtable(print.tbl)
+align(print.xtbl) <- "ll|p{1.4cm}p{1.5cm}p{1.5cm}p{1.5cm}p{2.5cm}p{1.25cm}p{1.5cm}p{1.5cm}";  # specify column widths for multi-row colnames
+cat("\\makebox[\\textwidth]{")
+print(print.xtbl, scalebox=0.9, include.rownames=FALSE, hline.after=-1:nrow(print.tbl), floating=FALSE); 
+cat("}")
+
+@
+
+\begin{quote}
+N.B. MZ and DZ similarity coefficients (typically, correlations) prefaced by a {\raise.17ex\hbox{$\scriptstyle\mathtt{\sim}$}} represent approximations from Figures where a precise estimate of the correlation was not provided; similarly, the * in the estimate of additive genetic (a2), common environment (c2) and individual-specific environment (e2) denotes that those estimates were computed for the purpose of this table, based on: e2=1-rMZ; a2=2(rMZ-rDZ); and c2=rMZ-a2, and were not provided in the study either using such equations or via formal model-fitting (latter denoted by **); \# study does not specify number of unrelated pairs.
+\end{quote}
+
+\vspace{0.4 cm} 
+\noindent The table above outlines variance components estimates for brain activation during a working memory task across multiple studies of MZ and DZ twins. The current study (Etzel) is among the largest. Based the table above, we see similarities and distinctions across the studies with regards to each variance component: \par
+\begin{itemize}
+  \item Individual-specific environment: The estimate of individual-specific environment (e2) is roughly derived from subtracting the MZ correlation from unity; this estimate is typically estimated with reasonable power even in smaller samples and includes an estimate of measurement error. With the exception of Polk (2007), which includes the fewest MZ pairs and thus may have derived a higher rMZ (the feature selection procedure may also have increased the rMZ), estimates of e2 are \textgreater 40\%, and often \textgreater 60\%, although less so for Visual in the current study. The observation that e2 estimates are the highest for FPN also support our hypothesis of that this network's structure is more idiosyncratic (and so has additional sources of person-specific variance).
+
+  \item Additive genetics, or heritability: Despite the larger sample size of the current study, estimates of heritability (a2) were lower for both FrontoParietal (FPN) and Visual in the current study, although when compared to Blokland (2011), heritability of behavioral performance (accuracy and mean reaction time, see Table 2 in Blokland and S1.6 in current study) were quite comparable especially for the 2-back in Blokland (2011) suggesting that the lower heritability in our study may be attributed to our analytic approach and our communities of interest.
+
+  \item Common environment: Importantly, unlike a majority of the other studies, we were able to parse familial effects (i.e., rMZ) into its heritable and common environmental sources, where the latter reflects those environments that are received or perceived equivalently by members of MZ and DZ pairs (and, in our case, non-twin siblings as our analyses did not reveal any evidence for special twin environment). The only other study to hint at common environmental influence is Polk (2007) although we arrive at this estimate via approximation based on the relative magnitude of their MZ and DZ correlations where the latter appears considerably greater than half the former. Interestingly, our choice to contrast the FPN and Visual communities further underscored the role of c2. For instance, while familial effects (i.e., MZ similarity) on Visual were greater than those on FPN, the greater familiality in Visual was primarily attributable to common environment. We might speculate that our estimates deviate from those reported by other studies due to our analytic approach to examine patterns of similarity, due to greater precision afforded by our larger sample size, especially for the DZ+SIB pair set, or due to age-effects (as our sample includes twins that are potentially somewhat older than those in prior studies), or further due to unmeasured positive gene-common environment covariance or primary assortative mating. 
+  
+  \item Non-additive genetics: Unlike Blokland (2008, 2011, 2017), we did not notice any evidence for non-additive genetic effects as our DZ+SIB (and DZ alone) correlations were rarely less than half that of the MZ pairs.
+\end{itemize}
+
+
+
+
+
+
+\end{document}
